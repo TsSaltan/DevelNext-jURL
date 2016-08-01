@@ -434,6 +434,7 @@ namespace app\modules;
         /**
          * --RU--
          * Установка файла для хранения кук
+         * @param string $file
          */
         public function setCookieFile($file){
             $this->opts['cookieFile'] = $file;
@@ -667,9 +668,11 @@ namespace app\modules;
 
             while(!$in->eof()){
                 $this->loadToBuffer($in);
-               }    
+            }   
+            $this->callProgressFunction($this->getConnectionParam('contentLength'), $this->getConnectionParam('contentLength'), $this->responseLength, $this->responseLength);
+         
 
-               return $this->buffer;
+            return $this->buffer;
         }
 
         /*

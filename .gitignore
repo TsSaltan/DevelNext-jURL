@@ -17,6 +17,8 @@ src/app/modules/AppModule.*
 *.gradle
 *.xml
 *.dnproject
+*.json
+*.txt
 
 
 # Windows image file caches
