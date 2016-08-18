@@ -136,11 +136,11 @@ namespace {
         }
 
         function curl_error(jURL $ch){
-            return ($ch->getError() === false) ? false : $ch->getError()['error'];
+            return ($ch->getError() === false) ? null : $ch->getError()['error'];
         }
 
         function curl_errno(jURL $ch){
-            return ($ch->getError() === false) ? false : $ch->getError()['code'];
+            return ($ch->getError() === false) ? 0 : $ch->getError()['code'];
         }
 
         function curl_getinfo(jURL $ch){
