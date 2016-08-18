@@ -1,6 +1,7 @@
 # DevelNext dirs
 .dn/
 .gradle/
+build/
 lib/
 src_generated/
 src/.data/img/
@@ -16,9 +17,14 @@ src/app/modules/AppModule.*
 *.pid
 *.gradle
 *.xml
-*.dnproject
-*.json
 *.txt
+*.zip
+*cookies.*
+*.dnproject
+*.debug
+debug.*
+
+
 
 
 # Windows image file caches

@@ -1,84 +1,72 @@
 <?php
-/*
- * Аналог cURL для jPHP
- * 
- * Подробное описание: http://community.develstudio.ru/showthread.php/13145-cURL-в-DevelNext
- * 
- * Версия: 0.3.1
- *
- * [Edit] Рефакторинг кода под новый редактор
- *
- */
+namespace app\modules{
+    use php\framework\Logger,
+        php\gui\UXApplication,
+        php\io\File,
+        php\io\FileStream,
+        php\io\MemoryStream,
+        php\io\Stream,
+        php\lang\System,
+        php\lang\Thread,
+        php\lib\Str,
+        php\net\Proxy,
+        php\net\URL,
+        php\net\URLConnection,
+        php\time\Time,
+        php\time\TimeFormat,
+        php\util\Locale,
+        php\util\Regex;
 
-namespace app\modules;
-
-    use php\gui\framework\AbstractModule;
-    use php\gui\UXApplication;
-    use php\lib\Str;
-    use php\net\Proxy;
-    use php\net\URL;
-    use php\net\URLConnection;
-    use php\io\File;
-    use php\io\FileStream;
-    use php\io\MemoryStream;
-    use php\io\ResourceStream;
-    use php\io\Stream;
-    use php\time\Time;
-    use php\time\TimeFormat;
-    use php\lang\System;
-    use php\lang\Thread;
-    use php\util\Locale;
-    use php\util\Regex;
-
-    class jURL extends AbstractModule
+    class jURL extends cURL
     {
-        const CRLF = "\r\n";
-        const LOG = false;
+        public $version = 0.4;
 
+        const CRLF = "\r\n",
+              LOG = false;
 
-        private $opts = [];         // Параметры подключения
-        private $URLConnection;     // Соединеие
+        private $opts = [],         // Параметры подключения
+                $URLConnection,     // Соединеие
         
-        // Характеристики буфера
-        private $buffer;            // Буфер получаемых данных
-        private $requestLength;     // Размер отправленных данных
-        private $responseLength;    // Размер полученных данных
+                // Характеристики буфера
+                $buffer,            // Буфер получаемых данных
+                $requestLength,     // Размер отправленных данных
+                $responseLength,    // Размер полученных данных
 
-        // Характеристики соединения
-        private $charset;           // Кодировка принимаемых данных
-        private $connectionInfo;    // Информация о последнем запросе
-        private $lastError;         // Информация об ошибках последнего запроса
-        private $requestHeaders;    // Отправленные заголовки
-        private $responseHeaders;   // Полученные заголовки
-        private $timeStart;         // Время начала запроса (для таймера)
+                // Характеристики соединения
+                $charset,           // Кодировка принимаемых данных
+                $connectionInfo,    // Информация о последнем запросе
+                $lastError,         // Информация об ошибках последнего запроса
+                $requestHeaders,    // Отправленные заголовки
+                $responseHeaders,   // Полученные заголовки
+                $timeStart;         // Время начала запроса (для таймера)
+
         
         public function __construct($url = null){
-            parent::__construct();
-
             // Установка параметров по умолчанию
-            $this->setOpts([
+            $this->setOpts([    
                 'url'               =>    $url,
                 'connectTimeout'    =>    10000,
                 'readTimeout'       =>    60000,
                 'requestMethod'     =>    'GET',
                 'followRedirects'   =>    false,
                 'autoReferer'       =>    false,
-                'userAgent'         =>     $this->genUserAgent(),
+                'userAgent'         =>    $this->genUserAgent(),
+                'proxy'             =>    false,
                 'proxyType'         =>    'HTTP',
-                'bufferLength'      =>     256 * 1024, //256 KiB
+                'bufferLength'      =>    256 * 1024, //256 KiB
                 'cookieFile'        =>    false,
                 'httpHeader'        =>    [],
                 'basicAuth'         =>    false,
                 'httpReferer'       =>    false,
-                'returnHeaders'     =>    false,    //
-                'progressFunction'     =>      NULL,
+                'returnHeaders'     =>    false,    
+                'progressFunction'  =>    null,
                 
                 'fileStream'        =>    false,    // Файл, куда будут записываться данные (вместо того, чтобы их вернуть)
-                'bodyFile'          =>     false,    // Файл, откуда будут счиываться данные в body
+                'bodyFile'          =>    false,    // Файл, откуда будут счиываться данные в body
 
-                'body'              =>    NULL,     // Отправляемые данные
-                'postData'          =>     [],        // Переформатирут данные в формат query, сохранит их в body
-                'postFiles'         =>     [],        // Отправляемые файлы, которые будут отправлены по стандартам "multipart/form-data
+                'body'              =>    null,     // Отправляемые данные
+                'postData'          =>    [],       // Переформатирут данные в формат query, сохранит их в body
+                'postFiles'         =>    [],       // Отправляемые файлы, которые будут отправлены по стандартам "multipart/form-data
             ]);            
 
             $this->log(['construct', $this->opts]);
@@ -117,7 +105,6 @@ namespace app\modules;
             else $this->destroyConnection();
     
             try {    
-
                 $this->createConnection();
 
                 // Параметры подключения
@@ -175,14 +162,15 @@ namespace app\modules;
                 // Подключились. Отправляем данные на сервер.
                 foreach($this->opts as $key => $value){
                     if(!$value || sizeof($value) == 0 || is_null($value)) continue;
+
                     switch($key){                        
                         case 'postData':
                             $value = $this->buildQuery($value);
                         case 'body':
                             $this->log('sendBody -> '.$key);
                             $out = $this->URLConnection->getOutputStream();
-                             $out->write($value);
-                             $this->requestLength += Str::Length($value);
+                            $out->write($value);
+                            $this->requestLength += Str::Length($value);
                         break; 
                         
                         case 'bodyFile':
@@ -207,7 +195,7 @@ namespace app\modules;
                     }
                 }
 
-                /*
+                /**
                  * Данные отправлены. Читаем заголовки с сервера.
                  *
                  * Нельзя использовать switch case, т.к. если первым будет followRedirects,
@@ -235,7 +223,11 @@ namespace app\modules;
                     $this->buffer->write( implode(self::CRLF, $hs) . self::CRLF . self::CRLF );
                 }
 
-                //Поддержка перенаправлений
+                /**
+                 * Поддержка перенаправлений
+                 * пришлось писать свои перенаправления, т.к. со встроенным followredirects
+                 * не удаётся прочитать отправляемые куки или заголовки перед перенаправлением
+                 */
                 if(isset($this->opts['followRedirects']) and $this->opts['followRedirects'] === true and isset($this->responseHeaders['Location'][0])){
                     if($this->opts['autoReferer'] === true){
                         $this->setOpt('httpReferer', $this->opts['url']);
@@ -278,17 +270,19 @@ namespace app\modules;
                     'executeTime' => $this->getExecuteTime(),
                     'requestHeaders' => $this->requestHeaders,
                     'responseHeaders' => $this->responseHeaders,
-
                     'requestLength' => $this->requestLength
                 ];
 
                 $this->log(['connectionInfo', $this->connectionInfo]);
                 $this->log(['Answer', $answer]);
-            
-                $this->lastError = [
-                    'error' => (is_object($this->URLConnection)) ? ($this->URLConnection->getErrorStream()->readFully()) : NULL,
-                    'code' => 0
-                ];
+                
+                $errorStream = (is_object($this->URLConnection)) ? ($this->URLConnection->getErrorStream()->readFully()) : NULL;
+                if(str::length($errorStream) > 0){
+                    $this->lastError = [
+                        'error' => $errorStream,
+                        'code' => 0
+                    ];
+                }
 
 
             } catch (\php\net\SocketException $e){
@@ -342,7 +336,7 @@ namespace app\modules;
         /**
          * --RU--
          * Получить информацию об ошибках
-         * @return array [code, error]
+         * @return array [code, error] || false
          */
         public function getError(){
             return $this->lastError;
@@ -452,6 +446,8 @@ namespace app\modules;
         /**
          * --RU--
          * Добавляет отправляемый HTTP-заголовок
+         * @param string $header - имя заголовка
+         * @param string $value - значение
          */
         public function addHttpHeader($header, $value){
             $this->opts['httpHeader'][] = [$header, $value];
@@ -460,7 +456,7 @@ namespace app\modules;
         /**
          * --RU--
          * Установка Basic-авторизации
-         * @param string $auth - "login:password" | false
+         * @param string $auth - "login:password" || false
          */
         public function setBasicAuth($auth){
             $this->opts['basicAuth'] = $auth;
@@ -469,6 +465,7 @@ namespace app\modules;
         /**
          * --RU--
          * Установка заголовка Referer
+         * @param string $ref - http://site.com/
          */
         public function setHttpReferer($ref){
             $this->opts['httpReferer'] = $ref;
@@ -476,7 +473,8 @@ namespace app\modules;
 
         /**
          * --RU--
-         * Вкл/выкл добавление HTTP-заголовков к ответу
+         * Добавлять HTTP-заголовки к ответу
+         * @param bool $return
          */
         public function setReturnHeaders($return){
             $this->opts['returnHeaders'] = $return;
@@ -485,6 +483,7 @@ namespace app\modules;
         /**
          * --RU--
          * Установка файла, куда будет сохранён ответ с сервера (например, при скачивании файла)
+         * @param string $file - path/to/file
          */
         public function setFileStream($file){
             $this->opts['fileStream'] = $file;
@@ -493,6 +492,7 @@ namespace app\modules;
         /**
          * --RU--
          * Установка файла, откуда будут считываться данные в тело запроса (например, при загрузка файла на сервер методом PUT)
+         * @param string $file - path/to/file
          */
         public function setBodyFile($file){
             $this->opts['bodyFile'] = $file;
@@ -501,6 +501,7 @@ namespace app\modules;
         /**
          * --RU--
          * Данные, которые будут отправлены в теле запроса
+         * @param string $data
          */
         public function setBody($data){
             $this->opts['body'] = $data;
@@ -509,6 +510,7 @@ namespace app\modules;
         /**
          * --RU--
          * Отправляемые данные, которые нужно преобразовать в POST-запрос
+         * @param array $data - ['key' => 'value']
          */
         public function setPostData($data){
             $this->opts['postData'] = $data;
@@ -523,16 +525,25 @@ namespace app\modules;
             $this->opts['postFiles'] = $file;
         }
 
-
         /**
          * --RU--
-         * Добавляет файл, который будет отправлен на сервер с заголовком "multipart/form-data" (например, при POST-загрузке файлов)
+         * Добавляет файлы, которые будут отправлены на сервер с заголовком "multipart/form-data" (например, при POST-загрузке файлов)
          * @param array $files - ['name' => 'path/to/file']
          */
         public function addPostFiles($files){
             foreach ($files as $key => $value) {
                 $this->opts['postFiles'][$key] = $value;
             }
+        }
+
+        /**
+         * --RU--
+         * Добавляет файл, который будет отправлен на сервер с заголовком "multipart/form-data" (например, при POST-загрузке файлов)
+         * @param string $name - имя
+         * @param string $filepath - пуит к файлу
+         */
+        public function addPostFile($name, $filepath){
+            $this->opts['postFiles'][$name] = $filepath;
         }
 
         /**
@@ -562,7 +573,7 @@ namespace app\modules;
          * @param mixed $value - значение
          */
         public function setOpt($key, $value){
-        	$func = 'set' . $key;
+            $func = 'set' . $key;
             $this->$func($value);
         }
 
@@ -625,10 +636,7 @@ namespace app\modules;
          */
         private function resetConnectionParams(){
             $this->resetBufferParams();
-            $this->lastError = [
-                'code' => -1,
-                'error' => false
-            ];
+            $this->lastError = false;
 
             $this->timeStart = Time::Now()->getTime();
             $this->charset = NULL;
@@ -867,14 +875,14 @@ namespace app\modules;
             return $return;
         }
 
-        /*
+        /**
          * Генерирует дефолтный User-Agent
          */
         private function genUserAgent(){
             return 'jURL/'.$this->version.' (Java/'. System::getProperty('java.version') .'; '. System::getProperty('os.name') .'; DevelNext)';
         }
 
-        /*
+        /**
          * Вызывает функцию, переданную для определения прогресса загрузки файла
          */
         private function callProgressFunction($dlTotal, $dl, $ulTotal, $ul){
@@ -921,9 +929,7 @@ namespace app\modules;
         }
 
         private function Log($data){
-            if(self::LOG) var_dump(['jURL' => $data]);
+            if(self::LOG) Logger::Debug('[jURL] ' . var_export($data, true));
         }
     }
-
-    $inc = 'res://app/modules/cURL.phps'; // Исходный код модуля поддержки синтаксиса cURL; phps - чтоб не компилировался в байт-код
-    if(ResourceStream::exists($inc))include $inc;
+}
