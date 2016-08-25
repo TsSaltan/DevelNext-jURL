@@ -19,7 +19,7 @@ namespace app\modules{
 
     class jURL extends cURL
     {
-        public $version = 0.4;
+        public $version = 0.4.0.1;
 
         const CRLF = "\r\n",
               LOG = false;
@@ -61,8 +61,8 @@ namespace app\modules{
                 'returnHeaders'     =>    false,    
                 'progressFunction'  =>    null,
                 
-                'fileStream'        =>    false,    // Файл, куда будут записываться данные (вместо того, чтобы их вернуть)
-                'bodyFile'          =>    false,    // Файл, откуда будут счиываться данные в body
+                'inputFile'        =>    false,    // Файл, куда будут записываться данные (вместо того, чтобы их вернуть) // 'fileStream'
+                'outputFile'          =>    false,    // Файл, откуда будут счиываться данные в body // bodyFile
 
                 'body'              =>    null,     // Отправляемые данные
                 'postData'          =>    [],       // Переформатирут данные в формат query, сохранит их в body
@@ -96,7 +96,7 @@ namespace app\modules{
             $url = new URL($this->opts['url']);
             $cookies = NULL;
             $boundary = Str::random(90);
-            $useBuffer = !(isset($this->opts['fileStream']) and $this->opts['fileStream'] !== false);
+            $useBuffer = !(isset($this->opts['inputFile']) and $this->opts['inputFile'] !== false);
 
             //Если был редирект, ничего не сбрасываем
             if(!$byRedirect){
@@ -173,10 +173,10 @@ namespace app\modules{
                             $this->requestLength += Str::Length($value);
                         break; 
                         
-                        case 'bodyFile':
+                        case 'outputFile':
                             $this->log('sendBody -> '.$key);
                             $out = $this->URLConnection->getOutputStream();                            
-                            $fileStream = ($this->opts['bodyFile'] instanceof FileStream)?$this->opts['bodyFile']:FileStream::of($this->opts['bodyFile'], 'r+');
+                            $fileStream = ($this->opts['outputFile'] instanceof FileStream)?$this->opts['outputFile']:FileStream::of($this->opts['outputFile'], 'r+');
                             
                             $this->log('Sending bodyFile, size = ' . $fileStream->length());
 
@@ -485,8 +485,12 @@ namespace app\modules{
          * Установка файла, куда будет сохранён ответ с сервера (например, при скачивании файла)
          * @param string $file - path/to/file
          */
+        public function setInputFile($file){
+            $this->opts['inputFile'] = $file;
+        }
+        // alias //
         public function setFileStream($file){
-            $this->opts['fileStream'] = $file;
+            $this->opts['inputFile'] = $file;
         }
 
         /**
@@ -494,8 +498,12 @@ namespace app\modules{
          * Установка файла, откуда будут считываться данные в тело запроса (например, при загрузка файла на сервер методом PUT)
          * @param string $file - path/to/file
          */
+        public function setOutputFile($file){
+            $this->opts['outputFile'] = $file;
+        }
+        // alias //
         public function setBodyFile($file){
-            $this->opts['bodyFile'] = $file;
+            $this->opts['outputFile'] = $file;
         }
 
         /**
@@ -652,8 +660,8 @@ namespace app\modules{
             $data = $input->read($this->opts['bufferLength']);
             $this->responseLength += Str::Length($data);
 
-            if($this->opts['fileStream'] instanceof FileStream){
-                $this->opts['fileStream']->write($data);
+            if($this->opts['inputFile'] instanceof FileStream){
+                $this->opts['inputFile']->write($data);
             }
             else $this->buffer->write($data);
 
@@ -666,10 +674,10 @@ namespace app\modules{
         private function getInputData(){
             $this->resetBufferParams();
 
-            if(isset($this->opts['fileStream']) and $this->opts['fileStream'] !== false){
-                $this->opts['fileStream'] = ($this->opts['fileStream'] instanceof FileStream) ? $this->opts['fileStream'] : FileStream::of($this->opts['fileStream'], 'w+');
+            if(isset($this->opts['inputFile']) and $this->opts['inputFile'] !== false){
+                $this->opts['inputFile'] = ($this->opts['inputFile'] instanceof FileStream) ? $this->opts['inputFile'] : FileStream::of($this->opts['inputFile'], 'w+');
             }
-            else $this->opts['fileStream'] = false;
+            else $this->opts['inputFile'] = false;
 
             $in = $this->URLConnection->getInputStream();
             $this->loadToBuffer($in);

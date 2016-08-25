@@ -15,7 +15,6 @@ namespace app\modules{
         }
 
         public function apply(){
-            Logger::Warn('Отключите модуль ' . basename(get_class($this)) . ' от формы');
             return null;
         }
     }
