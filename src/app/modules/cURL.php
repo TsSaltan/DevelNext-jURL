@@ -55,9 +55,9 @@ namespace {
                 'CURLOPT_PROXY' => 'proxy',
                 'CURLOPT_PROXYTYPE' => 'proxyType',
                 'CURLOPT_PROGRESSFUNCTION' => 'progressFunction',
-                'CURLOPT_FILE' => 'fileStream',
+                'CURLOPT_FILE' => 'outputFile',
                 'CURLOPT_BUFFERSIZE' => 'bufferLength',
-                'CURLOPT_INFILE' => 'bodyFile',
+                'CURLOPT_INFILE' => 'inputFile',
             ];
             
             $jKey = isset($reKeys[$key]) ? $reKeys[$key] : NULL;
