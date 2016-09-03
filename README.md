@@ -1,12 +1,39 @@
-## Меню
-**[Описание модуля](https://github.com/TsSaltan/DevelNext-jURL/wiki)**
+## DevelNext jURL Bundle
+Пакет расширений для работы с сетью c поддержкой curl_* функций
 
-**[Методы класса jURL](https://github.com/TsSaltan/DevelNext-jURL/wiki/Методы-класса-jURL)**
+### Возможности
+- Работа с куками
+- Работа с прокси
+- Отправка POST, PUT, DELETE запросов
+- Загрузка файлов
+- Изменение User-Agent, Referer
+- Поддержка Basic авторизации ([пример](http://test.tssaltan.ru/curl/basic.php))
+- Отображение ошибок и характеристик соединения
 
-**[Поддержка параметров cURL](https://github.com/TsSaltan/DevelNext-jURL/wiki/Поддержка-параметров-cURL)**
+### Wiki
+* **[Установка и обновление](https://github.com/TsSaltan/DevelNext-jURL/wiki/Установка)**
+* **[Методы класса jURL](https://github.com/TsSaltan/DevelNext-jURL/wiki/Методы-класса-jURL)**
+* **[Поддержка параметров cURL](https://github.com/TsSaltan/DevelNext-jURL/wiki/Поддержка-параметров-cURL)**
+* **[Поддержка функций cURL](https://github.com/TsSaltan/DevelNext-jURL/wiki/Поддержка-функций-cURL)**
+* **[Примеры](https://github.com/TsSaltan/DevelNext-jURL/wiki/Примеры)**
+* **[Тема на форуме](http://community.develstudio.org/showthread.php/13145-cURL-в-DevelNext)**
 
-**[Поддержка функций cURL](https://github.com/TsSaltan/DevelNext-jURL/wiki/Поддержка-функций-cURL)**
+### Changelog
+````
+--- 0.5 ---
+[Change] Модуль переделан в пакет расширений
 
-**[Примеры](https://github.com/TsSaltan/DevelNext-jURL/wiki/Примеры)**
+--- 0.4.0.1 ---
+[Fix] Ошибка при подключении модуля к форме
 
-**[Тема на форуме](http://community.develstudio.org/showthread.php/13145-cURL-в-DevelNext)**
+--- 0.4 ---
+[Fix] Компилируются в байт-код все компоненты модуля
+[Fix] Исправление ошибок
+
+--- 0.3.1 ---
+[Add] Добавлены подсказки
+[Fix] Исправлен баг, из-за которого прогресс загрузки мог не дойти до 100%
+
+--- 0.3 ---
+[Add] Добавлены параметры CURLOPT_POST, CURLOPT_GET, CURLOPT_PUT, CURLOPT_INFILE
+```

@@ -1,5 +1,6 @@
 <?php
-namespace app\modules{
+namespace bundle\jurl;
+
     use php\framework\Logger,
         php\gui\UXApplication,
         php\io\File,
@@ -19,7 +20,7 @@ namespace app\modules{
 
     class jURL
     {
-        public $version = 0.4.0.1;
+        public $version = '0.5';
 
         const CRLF = "\r\n",
               LOG = false;
@@ -96,6 +97,7 @@ namespace app\modules{
             $url = new URL($this->opts['url']);
             $cookies = NULL;
             $boundary = Str::random(90);
+            $answer = false;
             $useBuffer = !(isset($this->opts['outputFile']) and $this->opts['outputFile'] !== false);
 
             //Если был редирект, ничего не сбрасываем
@@ -939,14 +941,4 @@ namespace app\modules{
         private function Log($data){
             if(self::LOG) Logger::Debug('[jURL] ' . var_export($data, true));
         }
-
-        // На случай, если модуль подключён к форме, чтоб не было ошибки
-        public function getScript(){
-            return null;
-        }
-
-        public function apply(){
-            return null;
-        }
     }
-}
