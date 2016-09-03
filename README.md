@@ -16,6 +16,7 @@
 * **[Поддержка параметров cURL](https://github.com/TsSaltan/DevelNext-jURL/wiki/Поддержка-параметров-cURL)**
 * **[Поддержка функций cURL](https://github.com/TsSaltan/DevelNext-jURL/wiki/Поддержка-функций-cURL)**
 * **[Примеры](https://github.com/TsSaltan/DevelNext-jURL/wiki/Примеры)**
+* **[Демо-проекты](https://github.com/TsSaltan/DevelNext-jURL/wiki/Демо)**
 * **[Тема на форуме](http://community.develstudio.org/showthread.php/13145-cURL-в-DevelNext)**
 
 ### Changelog
