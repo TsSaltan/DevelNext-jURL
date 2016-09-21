@@ -9,7 +9,8 @@
 namespace;
 
 use php\lib\Str,
-    bundle\jurl\jURL;
+    bundle\jurl\jURL,
+    bundle\jurl\jURLException;
 
 // Для autoloader'а
 class cURL{
@@ -61,17 +62,21 @@ if(!function_exists('curl_init')){
            'CURLOPT_FILE' => 'outputFile',
            'CURLOPT_BUFFERSIZE' => 'bufferLength',
            'CURLOPT_INFILE' => 'inputFile',
+           'CURLOPT_NOBODY' => 'returnBody',
        ];
        
        $jKey = isset($reKeys[$key]) ? $reKeys[$key] : NULL;
        
-       if($key == 'CURLOPT_POST' and $value === true){
+       if($key == 'CURLOPT_POST' and (bool)$value === true){
            $value = 'POST';
        }
-       elseif($key == 'CURLOPT_GET' and $value === true){
+       elseif($key == 'CURLOPT_NOBODY'){
+           $value = !$value;
+       }
+       elseif($key == 'CURLOPT_GET' and (bool)$value === true){
            $value = 'GET';
        }
-       elseif($key == 'CURLOPT_PUT' and $value === true){
+       elseif($key == 'CURLOPT_PUT' and (bool)$value === true){
            $value = 'PUT';
        }
        elseif($key == 'CURLOPT_HTTPHEADER'){
@@ -85,9 +90,9 @@ if(!function_exists('curl_init')){
            }
            $value = $headers;
        }
-       elseif($key == 'CURLOPT_POST' AND $value === true){
+       /*elseif($key == 'CURLOPT_POST' AND $value === true){
            return $ch->setOpt('requestMethod', 'POST');
-       }
+       }*/
        elseif($key == 'CURLOPT_CONNECTTIMEOUT' OR $key == 'CURLOPT_TIMEOUT'){
            $value = $value * 1000;
        }
@@ -131,7 +136,11 @@ if(!function_exists('curl_init')){
     * @return mixed
     */
    function curl_exec(jURL $ch){
-       return $ch->exec();
+      try{
+         return $ch->exec();
+      } catch(jURLException $e){
+         return false;
+      }
    }
 
    /**
@@ -141,7 +150,14 @@ if(!function_exists('curl_init')){
     * @param callable $callback - Функция, куда бкдет передан результат запроса
     */
    function curl_exec_async(jURL $ch, $callback = null){
-       return $ch->aSyncExec($callback);
+      try{
+         $ch->aSyncExec($callback);
+      } catch(jURLException $e){
+         if(is_callable($callback)){
+            $callback(false);
+         }
+      }
+       
    }
 
    /**

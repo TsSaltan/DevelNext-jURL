@@ -1,7 +1,9 @@
 <?php
 namespace bundle\jurl;
 
-    use php\framework\Logger,
+    use bundle\jurl\jURLAbortException,
+        bundle\jurl\jURLException,
+        php\framework\Logger,
         php\gui\UXApplication,
         php\io\File,
         php\io\FileStream,
@@ -20,13 +22,14 @@ namespace bundle\jurl;
 
     class jURL
     {
-        public $version = '0.5';
+        public $version = '0.6';
 
         const CRLF = "\r\n",
               LOG = false;
 
         private $opts = [],         // Параметры подключения
                 $URLConnection,     // Соединеие
+                $thread,
         
                 // Характеристики буфера
                 $buffer,            // Буфер получаемых данных
@@ -60,10 +63,11 @@ namespace bundle\jurl;
                 'basicAuth'         =>    false,
                 'httpReferer'       =>    false,
                 'returnHeaders'     =>    false,    
+                'returnBody'        =>    true,    
                 'progressFunction'  =>    null,
                 
                 'outputFile'        =>    false,    // Файл, куда будут записываться данные (вместо того, чтобы их вернуть) // 'fileStream'
-                'inputFile'          =>    false,    // Файл, откуда будут счиываться данные в body // bodyFile
+                'inputFile'         =>    false,    // Файл, откуда будут счиываться данные в body // bodyFile
 
                 'body'              =>    null,     // Отправляемые данные
                 'postData'          =>    [],       // Переформатирут данные в формат query, сохранит их в body
@@ -77,21 +81,26 @@ namespace bundle\jurl;
          * --RU--
          * Выполнить запрос асинхронно
          * @param callable $callback - функция будет вызвана по окончанию запроса - function($result, jURL $this)
+         * @throws bundle\jurl\jURLException
          */
         public function asyncExec($callback = null){
-            return (new Thread(function () use ($callback){
+            $this->thread = new Thread(function () use ($callback){
                 $result = $this->Exec();
                 if(is_callable($callback)){
                     UXApplication::runLater(function () use ($result, $callback) {
                         $callback($result, $this);
                     });
                 }
-            }))->start();
+            });
+
+            $this->thread->start();
         }
 
         /**
          * --RU--
          * Выполнить запрос синхронно
+         * @return mixed
+         * @throws bundle\jurl\jURLException
          */
         public function exec($byRedirect = false){
             $url = new URL($this->opts['url']);
@@ -100,7 +109,7 @@ namespace bundle\jurl;
             $answer = false;
             $useBuffer = !(isset($this->opts['outputFile']) and $this->opts['outputFile'] !== false);
 
-            //Если был редирект, ничего не сбрасываем
+            // Если был редирект, ничего не сбрасываем
             if(!$byRedirect){
                 $this->resetConnectionParams();
             }            
@@ -114,51 +123,51 @@ namespace bundle\jurl;
                     if(!$value || sizeof($value) == 0) continue;
                     switch($key){
                         case 'connectTimeout':
-                            $this->URLConnection->connectTimeout = $value;
+                            $this->setConnectionParam('connectTimeout', $value);
                         break;
         
                         case 'readTimeout':
-                            $this->URLConnection->readTimeout = $value;
+                            $this->setConnectionParam('readTimeout', $value);
                         break;
         
                         case 'requestMethod':
-                            $this->URLConnection->requestMethod = $value;
+                            $this->setConnectionParam('requestMethod', $value);
                         break;
 
                         case 'cookieFile':
                             $cookies = $this->loadCookies($value);
-                            $this->URLConnection->setRequestProperty('Cookie', $this->getCookiesForDomain($cookies, $url->getHost()));
+                            $this->callConnectionFunc('setRequestProperty', ['Cookie', $this->getCookiesForDomain($cookies, $url->getHost())]);
                         break;
         
                         case 'userAgent':
-                            $this->URLConnection->setRequestProperty('User-Agent', $value);
+                            $this->callConnectionFunc('setRequestProperty', ['User-Agent', $value]);
                         break;
 
                         case 'httpHeader':
                             foreach($value as $h){
-                                $this->URLConnection->setRequestProperty($h[0], $h[1]);
+                                $this->callConnectionFunc('setRequestProperty', [$h[0], $h[1]]);
                             }
                         break;
 
                         case 'basicAuth':
-                            $this->URLConnection->setRequestProperty('Authorization', "Basic " . base64_encode($value) );
+                            $this->callConnectionFunc('setRequestProperty', [ 'Authorization', 'Basic ' . base64_encode($value) ]);
                         break;
 
                         case 'postData':
-                            $this->URLConnection->setRequestProperty('Content-Type', "application/x-www-form-urlencoded");
+                            $this->callConnectionFunc('setRequestProperty', [ 'Content-Type', 'application/x-www-form-urlencoded' ]);
                         break; 
                         
                         case 'httpReferer':
-                            $this->URLConnection->setRequestProperty('Referer', $value);
+                            $this->callConnectionFunc('setRequestProperty', [ 'Referer', $value ]);
                         break;
 
                         case 'postFiles':                        
-                            $this->URLConnection->setRequestProperty('Content-Type', "multipart/form-data; boundary=$boundary");
+                            $this->callConnectionFunc('setRequestProperty', [ 'Content-Type', 'multipart/form-data; boundary=' . $boundary ]);
                         break;
 
                     }
                 }
-                $this->requestHeaders = $this->URLConnection->getRequestProperties();
+                $this->requestHeaders = $this->callConnectionFunc('getRequestProperties');
                 $this->log(['Connected to' => $this->opts['url']]);
 
                 // Подключились. Отправляем данные на сервер.
@@ -170,14 +179,14 @@ namespace bundle\jurl;
                             $value = $this->buildQuery($value);
                         case 'body':
                             $this->log('sendBody -> '.$key);
-                            $out = $this->URLConnection->getOutputStream();
+                            $out = $this->callConnectionFunc('getOutputStream');
                             $out->write($value);
                             $this->requestLength += Str::Length($value);
                         break; 
                         
                         case 'inputFile':
                             $this->log('sendBody -> '.$key);
-                            $out = $this->URLConnection->getOutputStream();                            
+                            $out = $this->callConnectionFunc('getOutputStream');                           
                             $fileStream = ($this->opts['inputFile'] instanceof FileStream)?$this->opts['inputFile']:FileStream::of($this->opts['inputFile'], 'r+');
                             
                             $this->log('Sending bodyFile, size = ' . $fileStream->length());
@@ -204,7 +213,7 @@ namespace bundle\jurl;
                  * а после него cookieFile, то куки не будут прочитаны и сохранены
                  */
 
-                $this->responseHeaders = $this->URLConnection->getHeaderFields();
+                $this->responseHeaders = $this->callConnectionFunc('getHeaderFields');
                 // Извлечение кук
                 if(isset($this->opts['cookieFile']) and $this->opts['cookieFile'] !== false){
                     $setCookies = (isset($this->responseHeaders['Set-Cookie']) && is_array($this->responseHeaders['Set-Cookie']))?$this->responseHeaders['Set-Cookie']:[];
@@ -217,7 +226,7 @@ namespace bundle\jurl;
                 // Добавление заголовков в вывод
                 if(isset($this->opts['returnHeaders']) and $this->opts['returnHeaders'] === true){
                     // Если в foreach засунуть $headers, после цикла все данные куда-то исчезнут >:(
-                    foreach($this->URLConnection->getHeaderFields() as $k=>$v){
+                    foreach($this->callConnectionFunc('getHeaderFields') as $k=>$v){
                         foreach($v as $kk => $s){
                             $hs[] = $k. ((strlen($k) > 0) ? ': ' : '') . $s;
                         }
@@ -241,11 +250,12 @@ namespace bundle\jurl;
                     return $this->Exec(true);
                 }
                 
-
+                // По заголовку content-type получаем кодировку, чтоб потом декодировать данные
                 $this->detectCharset($this->getConnectionParam('contentType'));
-                $this->getInputData();
 
-                if($useBuffer){
+                if($this->opts['returnBody'] === true) $this->getInputData();
+
+                if($useBuffer and $this->buffer->length() > 0){
                     $this->buffer->seek(0);
                     $answer = $this->buffer->readFully();
                 }
@@ -257,7 +267,7 @@ namespace bundle\jurl;
                     $answer = Str::Decode($answer, $this->charset);
                 }
                 
-                $this->log(['URLConnection' => $this->URLConnection]);
+               // $this->log(['URLConnection' => $this->URLConnection]);
 
                 $this->connectionInfo = [
                     'url' => (object) $url,
@@ -278,30 +288,32 @@ namespace bundle\jurl;
                 $this->log(['connectionInfo', $this->connectionInfo]);
                 $this->log(['Answer', $answer]);
                 
-                $errorStream = (is_object($this->URLConnection)) ? ($this->URLConnection->getErrorStream()->readFully()) : NULL;
-                if(str::length($errorStream) > 0){
-                    $this->lastError = [
-                        'error' => $errorStream,
-                        'code' => 0
-                    ];
+                if($errorStream = $this->callConnectionFunc('getErrorStream')->readFully() and str::length($errorStream) > 0){
+                    $this->throwError('errorStream: ' . $errorStream, 1);
                 }
 
 
             } catch (\php\net\SocketException $e){
-                $this->lastError = ['code' => 1, 'error' => $e->getMessage()];
+                $this->throwError('SocketException: ' . $e->getMessage(), 2);
             } catch (\php\format\ProcessorException $e){
-                $this->lastError = ['code' => 2, 'error' => $e->getMessage()];
+                $this->throwError('ProcessorException: ' . $e->getMessage(), 3);
             } catch (\php\io\IOException $e){
-                $this->lastError = ['code' => 3, 'error' => $e->getMessage()];
+                $this->throwError('IOException: ' . $e->getMessage(), 4);
             } catch (\EngineException $e){
-                $this->lastError = ['code' => 4, 'error' => $e->getMessage()];
+                $this->throwError('EngineException: ' . $e->getMessage(), 5);
             } catch (\Exception $e){
-                $this->lastError = ['code' => 5, 'error' => $e->getMessage()];
+                $this->throwError('Exception: ' . $e->getMessage(), 6);
+            } catch (jURLException $e){
+                $this->throwError($e->getMessage(), $e->getCode);
+            } catch (jURLAbortException $e){
+                $this->close();
+                return false;
             } 
             
-            $this->log(['Connection error' => $this->lastError]);
+            $this->close();
             return $answer;
         }
+
 
         public function __destruct(){
             $this->destroyConnection();
@@ -313,8 +325,21 @@ namespace bundle\jurl;
          */
         public function destroyConnection(){
             $this->log('destroyConnection');
-            if(is_object($this->URLConnection))$this->URLConnection->disconnect();
+            if($this->thread instanceof Thread)                 $this->thread->interrupt();
+            if($this->opts['inputFile'] instanceof FileStream)  $this->opts['inputFile']->close();
+            if($this->opts['outputFile'] instanceof FileStream) $this->opts['outputFile']->close();
+            if($this->URLConnection instanceof URLConnection)   $this->URLConnection->disconnect();
+            if($this->buffer instanceof MemoryStream)           $this->buffer->close();
+
             $this->URLConnection = NULL;
+        }
+
+        /**
+         * --RU--
+         * Остановить выполнение запроса
+         */
+        public function close(){
+            return $this->destroyConnection();
         }
 
         /**
@@ -484,6 +509,15 @@ namespace bundle\jurl;
 
         /**
          * --RU--
+         * Скачивать тело запроса
+         * @param bool $return
+         */
+        public function setReturnBody($return){
+            $this->opts['returnBody'] = $return;
+        }
+
+        /**
+         * --RU--
          * Установка файла, куда будет сохранён ответ с сервера (например, при скачивании файла)
          * @param string $file - path/to/file
          */
@@ -584,12 +618,35 @@ namespace bundle\jurl;
          */
         public function setOpt($key, $value){
             $func = 'set' . $key;
-            $this->$func($value);
+            if(method_exists($this, $func)){
+                $this->$func($value);
+            }
         }
 
-        // private
+        private function throwError($message, $code){
+            $this->lastError = [
+                'error' => $message,
+                'code' => $code
+            ];
+            return new jURLException($message, $code);
+        }
+
         private function getConnectionParam($param){
-            return (is_object($this->URLConnection)) ? ($this->URLConnection->{$param}) : NULL;
+            if(!is_object($this->URLConnection)) throw new jURLAbortException("Aborted");
+            
+            return $this->URLConnection->{$param};
+        }
+
+        private function setConnectionParam($param, $value){
+            if(!is_object($this->URLConnection)) throw new jURLAbortException("Aborted");
+            
+            return $this->URLConnection->{$param} = $value;
+        }
+
+        private function callConnectionFunc($func, $params = []){
+            if(!is_object($this->URLConnection)) throw new jURLAbortException("Aborted");
+
+            return call_user_func_array([$this->URLConnection, $func], $params);
         }
 
         private function arrayMerge($a1, $a2){
@@ -625,9 +682,10 @@ namespace bundle\jurl;
             $this->log(['Options' => $this->opts]);
 
             $this->URLConnection = URLConnection::Create($this->opts['url'], $proxy);
+            //$this->URLConnection->doInput = $this->opts['returnBody'];
             $this->URLConnection->doInput = true;
             $this->URLConnection->doOutput = ($this->opts['body'] !== false || $this->opts['postData'] !== false || $this->opts['postFiles'] !== false);       
-            $this->URLConnection->followRedirects = false; //Встроенные редиректы не дают возможность обработать куки, придётся вручную обрабатывать заголовки Location: ... 
+            $this->URLConnection->followRedirects = false; // Встроенные редиректы не дают возможность обработать куки, придётся вручную обрабатывать заголовки Location: ... 
 
             $this->log(['createConnection', $this->opts['url'], ['proxy' => $proxy]]);
         }
@@ -681,7 +739,7 @@ namespace bundle\jurl;
             }
             else $this->opts['outputFile'] = false;
 
-            $in = $this->URLConnection->getInputStream();
+            $in = $this->callConnectionFunc('getInputStream');
             $this->loadToBuffer($in);
 
             while(!$in->eof()){
@@ -699,7 +757,7 @@ namespace bundle\jurl;
         private function sendOutputData($files, $boundary){
             $this->resetBufferParams();
 
-            $out = $this->URLConnection->getOutputStream();
+            $out = $this->callConnectionFunc('getOutputStream');
             $totalSize = 0;
             // Для начала узнаем общий размер файлов для progressFunction
             foreach ($files as $file) {

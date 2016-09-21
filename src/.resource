@@ -6,4 +6,4 @@ icon=develnext/bundle/jurl/jurl.png
 
 class=develnext\\bundle\\jurl\\jURLBundle
 author=Ts.Saltan
-version=0.5
+version=0.6

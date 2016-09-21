@@ -3,9 +3,12 @@ namespace develnext\bundle\jurl;
 
 use ide\bundle\AbstractBundle;
 use ide\bundle\AbstractJarBundle;
+use ide\formats\ScriptModuleFormat;
+use ide\Ide;
+use ide\project\Project;
 use php\io\Stream;
 use php\lib\Str;
-use ide\project\Project;
+use develnext\bundle\jurl\components\jURLDownloaderComponent;
 
 /**
  * Class jURLBundle
@@ -20,6 +23,13 @@ class jURLBundle extends AbstractJarBundle
 
         $this->setBootstrap($project);
         $this->installCode();
+
+
+        $format = Ide::get()->getRegisteredFormat(ScriptModuleFormat::class);
+
+        if ($format) {
+        //    $format->register(new jURLDownloaderComponent());
+        }
     }
 
     public function onRemove(Project $project, AbstractBundle $owner = null)
@@ -28,6 +38,12 @@ class jURLBundle extends AbstractJarBundle
 
         $this->setBootstrap($project);
         $this->removeCode();
+
+        $format = Ide::get()->getRegisteredFormat(ScriptModuleFormat::class);
+
+        if ($format) {
+        //    $format->unregister(new jURLDownloaderComponent());
+        }
     }
 
     /**
