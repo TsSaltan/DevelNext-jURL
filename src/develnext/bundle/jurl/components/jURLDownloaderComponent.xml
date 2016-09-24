@@ -1,25 +1,38 @@
 <element extends="ide\scripts\elements\AbstractComponent">
     <init>
         <property code="threadCount" value="4" />
+        <property code="savePath" value="./download/" />
+        <property code="selectSavePath" value="0" />
     </init>
 
-    <properties group="general">
-        <property code="urls" name="Ссылки для загрузки" editor="text" tooltip="Список ссылок для загрузки, кажая ссылка на новой строке" />
-        <property code="destDirectory" name="Папка для сохранения" editor="text" />
-        <property code="useTempFile" name="Временный файл" editor="boolean" tooltip="Загружать во фременный файл и только после полной загрузки размещать файл" />
-
+    <properties group="general" title="Главное" sort="1000">
+        <property code="url" name="Ссылка для загрузки" editor="text" tooltip="Ссылка для скачивания" />
         <property code="threadCount" name="Максимум потоков" editor="integer" />
+        <property code="savePath" name="Папка для сохранения" editor="text" />
+        <property code="selectSavePath" name="Показывать диалог сохранения файла" editor="boolean" />
+    </properties>
 
-        <property code="breakOnError" name="Останавливать при ошибке" editor="boolean" tooltip="Останавливать загрузку всех файлов, если возникла ошибка загрузки" />
+    <properties group="out" title="Вывод" sort="2000">
+        <property code="fieldUrl" name="Ссылка для загрузки [Поле ввода]" editor="object" />
+        <property code="progressBar" name="Прогресс загрузки [Прогресс-бар]" editor="object" />
+        <property code="labelProgress" name="Прогресс загрузки [Текст]" editor="object" />
+        <property code="labelSpeed" name="Скорость загрузки [Текст]" editor="object" />
+        <property code="labelThreads" name="Количество потоков [Текст]" editor="object" />
+        <property code="labelDownloaded" name="Объем скачанных данных [Tекст]" editor="object" />
+        <property code="labelTotal" name="Объема загружаемого файла [Текст]" editor="object" />
+        <property code="labelTimeLeft" name="Оставшееся время [Текст]" editor="object" />
+        <property code="labelTimePassed" name="Прошедшее время [Текст]" editor="object" />
+        <property code="buttonStart" name="Запуск загрузки [Кнопка]" editor="object" />
+        <property code="buttonStop" name="Остановка загрузки [Кнопка]" editor="object" />
     </properties>
 
     <eventTypes>
-        <eventType code="done" name="Завершено" kind="ObjectEvent" icon="icons/finished16.png" />
-        <eventType code="successAll" name="Завершено успешно" kind="ObjectEvent" icon="icons/ok16.png" />
+        <eventType code="complete" name="Завершено успешно" kind="ObjectEvent"/>
+        <!--eventType code="done" name="Завершено" kind="ObjectEvent" icon="icons/finished16.png" />
 
         <eventType code="progress" name="Прогресс загрузки" kind="ObjectEvent" icon="icons/progressbar16.png" />
 
         <eventType code="successOne" name="Успешная загрузка" kind="ObjectEvent" icon="icons/ok16.png" />
-        <eventType code="errorOne" name="Ошибка загрузки" kind="ObjectEvent" icon="icons/error16.png" />
+        <eventType code="errorOne" name="Ошибка загрузки" kind="ObjectEvent" icon="icons/error16.png" /-->
     </eventTypes>
 </element>

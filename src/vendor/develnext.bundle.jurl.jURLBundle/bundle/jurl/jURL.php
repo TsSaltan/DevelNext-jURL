@@ -22,7 +22,7 @@ namespace bundle\jurl;
 
     class jURL
     {
-        public $version = '0.6';
+        public $version = '0.6.1';
 
         const CRLF = "\r\n",
               LOG = false;
@@ -30,6 +30,7 @@ namespace bundle\jurl;
         private $opts = [],         // Параметры подключения
                 $URLConnection,     // Соединеие
                 $thread,
+                $outLog,
         
                 // Характеристики буфера
                 $buffer,            // Буфер получаемых данных
@@ -37,6 +38,8 @@ namespace bundle\jurl;
                 $responseLength,    // Размер полученных данных
 
                 // Характеристики соединения
+                $outStream,
+                $boundary,
                 $charset,           // Кодировка принимаемых данных
                 $connectionInfo,    // Информация о последнем запросе
                 $lastError,         // Информация об ошибках последнего запроса
@@ -47,8 +50,18 @@ namespace bundle\jurl;
         
         public function __construct($url = null){
             // Установка параметров по умолчанию
+            $this->reset();
+            $this->setUrl($url);
+            $this->log('construct');
+        }
+
+        /**
+         * --RU--
+         * Сбросить параметры текущего соединения на стандартные
+         */
+        public function reset(){
             $this->setOpts([    
-                'url'               =>    $url,
+                'url'               =>    NULL,
                 'connectTimeout'    =>    10000,
                 'readTimeout'       =>    60000,
                 'requestMethod'     =>    'GET',
@@ -57,14 +70,15 @@ namespace bundle\jurl;
                 'userAgent'         =>    $this->genUserAgent(),
                 'proxy'             =>    false,
                 'proxyType'         =>    'HTTP',
-                'bufferLength'      =>    256 * 1024, //256 KiB
+                'bufferSize'        =>    48 * 1024, // 48 KiB
                 'cookieFile'        =>    false,
                 'httpHeader'        =>    [],
                 'basicAuth'         =>    false,
                 'httpReferer'       =>    false,
-                'returnHeaders'     =>    false,    
-                'returnBody'        =>    true,    
+
                 'progressFunction'  =>    null,
+                'returnHeaders'     =>    false,    
+                'returnBody'        =>    true,       
                 
                 'outputFile'        =>    false,    // Файл, куда будут записываться данные (вместо того, чтобы их вернуть) // 'fileStream'
                 'inputFile'         =>    false,    // Файл, откуда будут счиываться данные в body // bodyFile
@@ -72,9 +86,7 @@ namespace bundle\jurl;
                 'body'              =>    null,     // Отправляемые данные
                 'postData'          =>    [],       // Переформатирут данные в формат query, сохранит их в body
                 'postFiles'         =>    [],       // Отправляемые файлы, которые будут отправлены по стандартам "multipart/form-data
-            ]);            
-
-            $this->log(['construct', $this->opts]);
+            ]); 
         }
 
         /**
@@ -105,9 +117,10 @@ namespace bundle\jurl;
         public function exec($byRedirect = false){
             $url = new URL($this->opts['url']);
             $cookies = NULL;
-            $boundary = Str::random(90);
+            $this->boundary = Str::random(90);
             $answer = false;
             $useBuffer = !(isset($this->opts['outputFile']) and $this->opts['outputFile'] !== false);
+            $isMultipart = (is_array($this->opts['postFiles']) and (sizeof($this->opts['postFiles']) > 0));
 
             // Если был редирект, ничего не сбрасываем
             if(!$byRedirect){
@@ -154,6 +167,7 @@ namespace bundle\jurl;
                         break;
 
                         case 'postData':
+                            if($isMultipart) break;
                             $this->callConnectionFunc('setRequestProperty', [ 'Content-Type', 'application/x-www-form-urlencoded' ]);
                         break; 
                         
@@ -162,7 +176,7 @@ namespace bundle\jurl;
                         break;
 
                         case 'postFiles':                        
-                            $this->callConnectionFunc('setRequestProperty', [ 'Content-Type', 'multipart/form-data; boundary=' . $boundary ]);
+                            $this->callConnectionFunc('setRequestProperty', [ 'Content-Type', 'multipart/form-data; boundary=' . $this->boundary ]);
                         break;
 
                     }
@@ -176,24 +190,29 @@ namespace bundle\jurl;
 
                     switch($key){                        
                         case 'postData':
-                            $value = $this->buildQuery($value);
+                            if($isMultipart){
+                                foreach($value as $k=>$v){
+                                    $this->sendMultipartData($k, $v);
+                                }
+                                break;
+                            }
+
+                            $value = http_build_query($value);
                         case 'body':
                             $this->log('sendBody -> '.$key);
-                            $out = $this->callConnectionFunc('getOutputStream');
-                            $out->write($value);
+                            $this->sendOutStream($value);
                             $this->requestLength += Str::Length($value);
                         break; 
                         
                         case 'inputFile':
-                            $this->log('sendBody -> '.$key);
-                            $out = $this->callConnectionFunc('getOutputStream');                           
+                            $this->log('sendBody -> '.$key);                        
                             $fileStream = ($this->opts['inputFile'] instanceof FileStream)?$this->opts['inputFile']:FileStream::of($this->opts['inputFile'], 'r+');
                             
                             $this->log('Sending bodyFile, size = ' . $fileStream->length());
 
-                            $this->sendData($out, $fileStream, $fileStream->length());
+                            $this->sendData($fileStream, $fileStream->length());
                             while(!$fileStream->eof()){
-                                $this->sendData($out, $fileStream, $fileStream->length());
+                                $this->sendData($fileStream, $fileStream->length());
                             }
 
                             $fileStream->close();
@@ -201,10 +220,13 @@ namespace bundle\jurl;
 
                         case 'postFiles':
                             $this->log('sendBody -> '.$key);
-                            $this->sendOutputData((is_array($value))?$value:[$value], $boundary);
+                            $this->sendOutputData((is_array($value))?$value:[$value]);
                         break;
                     }
                 }
+
+                // Завершить отправку multipart
+                if($isMultipart) $this->sendMultipartEnd();
 
                 /**
                  * Данные отправлены. Читаем заголовки с сервера.
@@ -212,26 +234,47 @@ namespace bundle\jurl;
                  * Нельзя использовать switch case, т.к. если первым будет followRedirects,
                  * а после него cookieFile, то куки не будут прочитаны и сохранены
                  */
-
                 $this->responseHeaders = $this->callConnectionFunc('getHeaderFields');
+                foreach($this->responseHeaders as $headerKey => $headerValue){
+                    unset($this->responseHeaders[$headerKey]);
+
+                    $headerKey = str::join(array_map(function($q){
+                        return str::upperFirst($q);
+                    }, str::split($headerKey, '-')), '-');
+
+                    $this->responseHeaders[$headerKey] = $headerValue;
+                }
+
+                $this->log(['responseHeaders' => $this->responseHeaders]);
+
                 // Извлечение кук
                 if(isset($this->opts['cookieFile']) and $this->opts['cookieFile'] !== false){
                     $setCookies = (isset($this->responseHeaders['Set-Cookie']) && is_array($this->responseHeaders['Set-Cookie']))?$this->responseHeaders['Set-Cookie']:[];
                             
                     $newCookies = $this->parseCookies($setCookies, $url->getHost());
                     $saveCookies = $this->uniteCookies($cookies, $newCookies);
-                    Stream::putContents($this->opts['cookieFile'], $saveCookies);
+
+                    if(File::of($this->opts['cookieFile'])->canWrite()){
+                        Stream::putContents($this->opts['cookieFile'], $saveCookies);
+                    }
                 }
     
                 // Добавление заголовков в вывод
                 if(isset($this->opts['returnHeaders']) and $this->opts['returnHeaders'] === true){
                     // Если в foreach засунуть $headers, после цикла все данные куда-то исчезнут >:(
-                    foreach($this->callConnectionFunc('getHeaderFields') as $k=>$v){
-                        foreach($v as $kk => $s){
-                            $hs[] = $k. ((strlen($k) > 0) ? ': ' : '') . $s;
+                    $hs = [];
+                    //foreach($this->callConnectionFunc('getHeaderFields') as $k=>$v){
+                    foreach($this->responseHeaders as $hk=>$hv){
+                        foreach($hv as $kk => $s){
+                            $hs[] = $hk. ((strlen($hk) > 0) ? ': ' : '') . $s;
                         }
                     }
-                    $this->buffer->write( implode(self::CRLF, $hs) . self::CRLF . self::CRLF );
+
+                    if(sizeof($hs) > 0) {
+                        $h = implode(self::CRLF, $hs);
+                        $h.= self::CRLF . self::CRLF;
+                        $this->buffer->write($h);
+                    }
                 }
 
                 /**
@@ -286,6 +329,7 @@ namespace bundle\jurl;
                 ];
 
                 $this->log(['connectionInfo', $this->connectionInfo]);
+                $this->log(['Output Log', $this->outLog]);
                 $this->log(['Answer', $answer]);
                 
                 if($errorStream = $this->callConnectionFunc('getErrorStream')->readFully() and str::length($errorStream) > 0){
@@ -293,7 +337,7 @@ namespace bundle\jurl;
                 }
 
 
-            } catch (\php\net\SocketException $e){
+            }/** catch (\php\net\SocketException $e){
                 $this->throwError('SocketException: ' . $e->getMessage(), 2);
             } catch (\php\format\ProcessorException $e){
                 $this->throwError('ProcessorException: ' . $e->getMessage(), 3);
@@ -305,7 +349,8 @@ namespace bundle\jurl;
                 $this->throwError('Exception: ' . $e->getMessage(), 6);
             } catch (jURLException $e){
                 $this->throwError($e->getMessage(), $e->getCode);
-            } catch (jURLAbortException $e){
+            }//*/ 
+            catch (jURLAbortException $e){
                 $this->close();
                 return false;
             } 
@@ -330,8 +375,6 @@ namespace bundle\jurl;
             if($this->opts['outputFile'] instanceof FileStream) $this->opts['outputFile']->close();
             if($this->URLConnection instanceof URLConnection)   $this->URLConnection->disconnect();
             if($this->buffer instanceof MemoryStream)           $this->buffer->close();
-
-            $this->URLConnection = NULL;
         }
 
         /**
@@ -448,8 +491,13 @@ namespace bundle\jurl;
          * --RU--
          * Установка размера буфера обмена данными
          */
+        public function setBufferSize($type){
+            $this->opts['bufferSize'] = $type;
+        }
+
+        // alias setBufferSize
         public function setBufferLength($type){
-            $this->opts['bufferLength'] = $type;
+            $this->opts['bufferSize'] = $type;
         }
 
         /**
@@ -466,7 +514,7 @@ namespace bundle\jurl;
          * Установка отправляемых HTTP-заголовков
          * @param array $headers [['Header1', 'Value1'], ['Header2', 'Value2']]
          */
-        public function setHttpHeader($headers){
+        public function setHttpHeaders($headers){
             $this->opts['httpHeader'] = $headers;
         }
 
@@ -557,6 +605,7 @@ namespace bundle\jurl;
          * @param array $data - ['key' => 'value']
          */
         public function setPostData($data){
+            if(is_string($data))$data = parse_str($data);
             $this->opts['postData'] = $data;
         }
 
@@ -631,6 +680,12 @@ namespace bundle\jurl;
             return new jURLException($message, $code);
         }
 
+        private function sendOutStream($out){
+            if(!($this->outStream instanceof Stream)) $this->outStream = $this->callConnectionFunc('getOutputStream');
+            if(self::LOG) $this->outLog .= $out . self::CRLF;
+            $this->outStream->write($out);
+        }
+
         private function getConnectionParam($param){
             if(!is_object($this->URLConnection)) throw new jURLAbortException("Aborted");
             
@@ -679,10 +734,9 @@ namespace bundle\jurl;
                 $proxy = new Proxy($this->opts['proxyType'], $ex[0], $ex[1]);
             }
                 
-            $this->log(['Options' => $this->opts]);
+            // $this->log(['Options' => $this->opts]);
 
             $this->URLConnection = URLConnection::Create($this->opts['url'], $proxy);
-            //$this->URLConnection->doInput = $this->opts['returnBody'];
             $this->URLConnection->doInput = true;
             $this->URLConnection->doOutput = ($this->opts['body'] !== false || $this->opts['postData'] !== false || $this->opts['postFiles'] !== false);       
             $this->URLConnection->followRedirects = false; // Встроенные редиректы не дают возможность обработать куки, придётся вручную обрабатывать заголовки Location: ... 
@@ -717,7 +771,7 @@ namespace bundle\jurl;
          * Читает данные из входящего потока в буфер
          */
         private function loadToBuffer($input){
-            $data = $input->read($this->opts['bufferLength']);
+            $data = $input->read($this->opts['bufferSize']);
             $this->responseLength += Str::Length($data);
 
             if($this->opts['outputFile'] instanceof FileStream){
@@ -751,59 +805,82 @@ namespace bundle\jurl;
             return $this->buffer;
         }
 
+        /**
+         * Отправляет заголовки, завершающие передачу multipart
+         */
+        private function sendMultipartEnd(){
+            $this->sendOutStream("--" . $this->boundary . "--");
+            $this->sendOutStream(self::CRLF);
+        }
+
+        /**
+         * Отправляет данные в выходной поток в формате multipart
+         * @param string|FileStream $source
+         */
+        private function sendMultipartData($key, $source, $fileName = NULL, $totalSize = 0){
+            $isFile = $source instanceof FileStream;
+            $contentType = ($isFile) ? URLConnection::guessContentTypeFromName($fileName) : 'text/plain';
+
+            $this->sendOutStream("--" . $this->boundary);
+            $this->sendOutStream(self::CRLF);
+            $this->sendOutStream("Content-Disposition: form-data; name=\"$key\"" . ($isFile ? "; filename=\"$fileName\"": NULL));
+            $this->sendOutStream(self::CRLF);
+            $this->sendOutStream("Content-Type: $contentType");
+            $this->sendOutStream(self::CRLF);
+                                    
+            if($isFile){
+                $this->sendOutStream("Content-Transfer-Encoding: binary");
+                $this->sendOutStream(self::CRLF);
+                $this->sendOutStream(self::CRLF);
+
+                $this->sendData($source, $totalSize);
+                while(!$source->eof()){
+                    $this->sendData($source, $totalSize);
+                }
+            } else {
+                $this->sendOutStream(self::CRLF);
+                $this->sendOutStream($source);
+            }
+
+            $this->sendOutStream(self::CRLF);
+        }
+
         /*
          * Отправляет файлы в выходной поток данных
          */
-        private function sendOutputData($files, $boundary){
+        private function sendOutputData($files){
             $this->resetBufferParams();
 
-            $out = $this->callConnectionFunc('getOutputStream');
-            $totalSize = 0;
             // Для начала узнаем общий размер файлов для progressFunction
-            foreach ($files as $file) {
-                $s = new FileStream($file, 'r+');
-                $totalSize += $s->length();
-                $s->close();
+            $totalSize = 0;
+            if($this->issetProgressFunction()){           
+                foreach ($files as $file) {
+                    $s = new FileStream($file, 'r+');
+                    $totalSize += $s->length();
+                    $s->close();
+                }
             }
 
             foreach ($files as $fKey => $file) {
 
                 $fileName = File::of($file)->getName();
-
-                $out->write("--$boundary");
-                $out->write(self::CRLF);
-                $out->write("Content-Disposition: form-data; name=\"$fKey\"; filename=\"$fileName\"");
-                $out->write(self::CRLF);
-                $out->write("Content-Type: " . URLConnection::guessContentTypeFromName($fileName));
-                $out->write(self::CRLF);
-                $out->write("Content-Transfer-Encoding: binary");
-                $out->write(self::CRLF);
-                $out->write(self::CRLF);
-                                    
                 $fStream = new FileStream($file, 'r+');
 
-                $this->sendData($out, $fStream, $totalSize);
-                while(!$fStream->eof()){
-                    $this->sendData($out, $fStream, $totalSize);
-                }
-                
-                $fStream->close();
+                $this->sendMultipartData($fKey, $fStream, $fileName, $totalSize);
 
-                $out->write(self::CRLF);
             }
         
-            $out->write("--$boundary--");
-            $out->write(self::CRLF);
+            
         }
 
         /*
          * Через буфер отправляет данные в исходящий поток
          */
-        private function sendData($out, $fileStream, $totalSize){
-            $data = $fileStream->read($this->opts['bufferLength']);
+        private function sendData($fileStream, $totalSize){
+            $data = $fileStream->read($this->opts['bufferSize']);
             $this->requestLength += Str::Length($data);
 
-            $out->write($data);
+            $this->sendOutStream($data);
 
             $this->callProgressFunction(0, 0, $totalSize, $this->requestLength);
         }
@@ -954,7 +1031,7 @@ namespace bundle\jurl;
          * Вызывает функцию, переданную для определения прогресса загрузки файла
          */
         private function callProgressFunction($dlTotal, $dl, $ulTotal, $ul){
-            if(!isset($this->opts['progressFunction']) || !is_callable($this->opts['progressFunction'])) {
+            if(!$this->issetProgressFunction()) {
                 return;
             }
 
@@ -968,32 +1045,8 @@ namespace bundle\jurl;
             }
         }
 
-        public function buildQuery($a,$b='',$c=0){
-            if (!is_array($a)) return $a;
-
-            foreach ($a as $k=>$v){
-                if($c){
-                    if( is_numeric($k) ){
-                        $k=$b."[]";
-                    }
-                    else{
-                        $k=$b."[$k]";
-                    }
-                }
-                else{   
-                    if (is_int($k)){
-                        $k=$b.$k;
-                    }
-                }
-
-                if (is_array($v)||is_object($v)){
-                    $r[] = $this->buildQuery($v,$k,1);
-                        continue;
-                }
-
-                $r[] = urlencode($k) . "=" . urlencode($v);
-            }
-            return implode("&",$r);
+        private function issetProgressFunction(){
+            return is_callable($this->opts['progressFunction']);
         }
 
         private function Log($data){

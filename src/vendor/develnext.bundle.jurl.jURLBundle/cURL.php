@@ -1,6 +1,6 @@
 <?php
 /**
- * Вклюючает поддержку синтаксиса cURL, как в обычном PHP
+ * Включает поддержку синтаксиса cURL, как в обычном PHP
  * становятся доступными curl_* функции
  *
  * Обязательно, чтоб функции были объявлены в корневом namespace
@@ -16,7 +16,9 @@ use php\lib\Str,
 class cURL{
 
 }
-    
+
+define('CURLOPT_URL', 'CURLOPT_URL');
+
 if(!function_exists('curl_init')){
 
    /**
@@ -103,8 +105,8 @@ if(!function_exists('curl_init')){
                if(Str::Sub($v, 0, 1) == '@')$files[$k] = Str::Sub($v, 1, Str::Length($v));
                else $str[$k] = $v;
            }
-           if(sizeof($files) > 0) return $ch->setOpt('postFiles', $files);
-           else $value = $str;
+           if(sizeof($files) > 0) $ch->setOpt('postFiles', $files);
+           $value = $str;
        }
        elseif($key == 'CURLOPT_PROXYTYPE'){
            $proxyTypes = [
@@ -196,6 +198,66 @@ if(!function_exists('curl_init')){
     * @param jURL $ch - Дескриптор cURL, полученный из curl_init
     */
    function curl_close(jURL $ch){
-       return $ch->destroyConnection();
+       return $ch->close();
    }
+
+   /**
+    * --RU--
+    * Сбросить параметры текущего сеанса
+    */
+   function curl_reset(jURL $ch){
+       return $ch->reset();
+   }
+}
+
+if(!function_exists('http_build_query')){
+    function http_build_query($a,$b='',$c=0){
+        if (!is_array($a)) return $a;
+
+        foreach ($a as $k=>$v){
+            if($c){
+                if( is_numeric($k) ){
+                    $k=$b."[]";
+                }
+                else{
+                    $k=$b."[$k]";
+                }
+            }
+            else{   
+                if (is_int($k)){
+                    $k=$b.$k;
+                }
+            }
+            if (is_array($v)||is_object($v)){
+                $r[] = http_build_query($v,$k,1);
+                    continue;
+            }
+            $r[] = urlencode($k) . "=" . urlencode($v);
+        }
+        return implode("&",$r);
+    }
+}
+
+if(!function_exists('parse_str')){
+  function parse_str($str) {
+    $arr = array();
+    $pairs = explode('&', $str);
+
+    foreach ($pairs as $i) {
+      list($name,$value) = explode('=', $i, 2);
+    
+      if( isset($arr[$name]) ) {
+        if( is_array($arr[$name]) ) {
+          $arr[$name][] = $value;
+        }
+        else {
+          $arr[$name] = array($arr[$name], $value);
+        }
+      }
+      else {
+        $arr[$name] = $value;
+      }
+    }
+    return $arr;
+  }
 }

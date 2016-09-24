@@ -28,7 +28,7 @@ class jURLBundle extends AbstractJarBundle
         $format = Ide::get()->getRegisteredFormat(ScriptModuleFormat::class);
 
         if ($format) {
-        //    $format->register(new jURLDownloaderComponent());
+            $format->register(new jURLDownloaderComponent());
         }
     }
 
@@ -42,7 +42,7 @@ class jURLBundle extends AbstractJarBundle
         $format = Ide::get()->getRegisteredFormat(ScriptModuleFormat::class);
 
         if ($format) {
-        //    $format->unregister(new jURLDownloaderComponent());
+            $format->unregister(new jURLDownloaderComponent());
         }
     }
 
