@@ -21,15 +21,13 @@
 
 ### Changelog
 ````
-[todo]
-- Многопоточная загрузка
-- Компонент загрузчик
-
---- 0.7 ---
-+ reset / curl_reset
-[Add] обавлена поддержка функций http_build_query, parse_str
-[Fix] Мелкие исправления (progressFunction)
+--- 1.0 ---
+[Add] Компонент загрузчик
+[Add] Многопоточная загрузка
+[Add] Добавлена поддержка функций http_build_query, parse_str
+[Add] Метод reset для сброса параметров (curl_reset)
 [Fix] Исправлена одновременная отправка файлов и переменных методом POST
+[Fix] Прочие исправления
 
 --- 0.6 ---
 [Add] Загрузка только заголовков без тела запроса (cURL - CURLOPT_NOBODY; jURL - setReturnBody)
@@ -53,4 +51,15 @@
 
 --- 0.3 ---
 [Add] Добавлены параметры CURLOPT_POST, CURLOPT_GET, CURLOPT_PUT, CURLOPT_INFILE
+```
+
+### Сборка расширения
+#### Windows
+```
+gradlew.bat bundle
+```
+
+#### Linux
+```
+gradlew
 ```

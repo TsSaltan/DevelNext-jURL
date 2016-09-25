@@ -27,12 +27,10 @@
     </properties>
 
     <eventTypes>
-        <eventType code="complete" name="Завершено успешно" kind="ObjectEvent"/>
-        <!--eventType code="done" name="Завершено" kind="ObjectEvent" icon="icons/finished16.png" />
-
-        <eventType code="progress" name="Прогресс загрузки" kind="ObjectEvent" icon="icons/progressbar16.png" />
-
-        <eventType code="successOne" name="Успешная загрузка" kind="ObjectEvent" icon="icons/ok16.png" />
-        <eventType code="errorOne" name="Ошибка загрузки" kind="ObjectEvent" icon="icons/error16.png" /-->
+        <eventType code="complete" name="Файл загружен" kind="ObjectEvent" icon="icons/ok16.png"/>
+        <eventType code="error" name="Ошибка при загрузке" kind="ObjectEvent" icon="icons/error16.png"/>
+        <eventType code="abort" name="Отмена загрузки" kind="ObjectEvent" icon="icons/exit16.png"/>
+        <eventType code="start" name="Начало загрузки" kind="ObjectEvent" icon="icons/loadingEvent16.png"/>
+        <eventType code="progress" name="Прогресс загрузки" kind="ObjectEvent" icon="icons/progressbar16.png"/>
     </eventTypes>
 </element>

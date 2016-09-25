@@ -159,26 +159,7 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         $this->checkRange();
     }
 
-    /**
-     * --RU--
-     * Доступные события: error, complete, abort, start, progress
-     * @param string $event
-     * @param callable $action
-     */
-   /* public function on($event, $action){
-        $this->events[$event] = $action;
-    }*/
-
-/*    private function callEvent($event){
-        if(isset($this->events[$event]) and is_callable($this->events[$event])){
-            call_user_func($this->events[$event]);
-        }
-    }*/
-
     protected function applyImpl($target){
-
-        //var_dump(['applyImpl' => $this->buttonStart]);
-
         $this->_bindAction($this->buttonStart, function () {
             $this->start();
         });
@@ -187,7 +168,6 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
             $this->stop();
         });
 
-//var_dump(['fieldUrl-1'=>$this->fieldUrl]);
 
         $this->fieldUrl = $this->getNode($this->fieldUrl);
         $this->progressBar = $this->getNode($this->progressBar);
@@ -201,7 +181,6 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         $this->buttonStart = $this->getNode($this->buttonStart);
         $this->buttonStop = $this->getNode($this->buttonStop);
 
-//var_dump(['fieldUrl'=>$this->fieldUrl]);
         if(is_object($this->buttonStart) and method_exists($this->buttonStart, 'setenabled')){
             $this->buttonStart->enabled = true;
         }
@@ -217,11 +196,6 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         return (!is_null($obj) and isset($f[0])) ? $f[0]->root : null;
     }
     
-  /*  function getObjectText()
-    {
-        return (string) $this->filename;
-    }
-*/
     /**
      * --RU--
      * Получить текущую скорость загрузки
@@ -334,6 +308,7 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
      * Остановить выполнение потоков
      */    
     private function close(){
+        $this->isStarted = false;
         foreach($this->handlePool as $pool){
             try{            
                 $pool->close();
@@ -349,8 +324,6 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         
         fs::clean($this->tmpPath);
         fs::delete($this->tmpPath);
-
-        $this->isStarted = false;
 
         if(is_object($this->buttonStop) and method_exists($this->buttonStop, 'on')){
             $this->buttonStop->enabled = false;
@@ -371,7 +344,8 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
     }
         
     protected function checkRange(){
-        $this->trigger('start');
+        $this->trigger('start', [$this->url]);
+
 
         $handle = new jURL($this->url);
         $handle->setRequestMethod('HEAD');
@@ -383,7 +357,14 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         
         $handle->asyncExec(function($result, $handle){
             $headers = $handle->getConnectionInfo()['responseHeaders'];
+            $errors = $handle->getError();
             $handle->close();
+
+            if($result === false){
+                if($this->isStarted) $this->trigger('error', $errors);
+                return $this->close();
+            }
+
             $this->findDownloadName($headers);
             
             if(isset($headers['Accept-Ranges'][0]) and $headers['Accept-Ranges'][0] == 'bytes' and isset($headers['Content-Length'][0])){
@@ -393,6 +374,7 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
             
             $this->onCheckRange(false);
         });
+
     }
 
     protected function findDownloadName($headers){
@@ -407,9 +389,13 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
     }
 
     protected function onProgresss($i, $bytes){
-        $this->trigger('progress');
         $this->progressPool[$i]['bytes'] = $bytes;
         $progress = $this->getProgress();
+        $speed = $this->getSpeed();
+        $bytes = $this->getBytes();
+        $threads = $this->getThreadsCount();
+
+        $this->trigger('progress', [$progress, $speed, $bytes, $this->contentLength]);
         if(is_object($this->progressBar) and method_exists($this->progressBar, 'setprogress')){
             $this->progressBar->progress = $progress;
         }
@@ -419,12 +405,10 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         }
         
         if(is_object($this->labelSpeed) and method_exists($this->labelSpeed, 'settext')){
-            $speed = $this->getSpeed();
             $this->labelSpeed->text = $this->formatBytes($this->getSpeed()) . '/s';
         }
         
         if(is_object($this->labelDownloaded) and method_exists($this->labelDownloaded, 'settext')){
-            $bytes = $this->getBytes();
             $this->labelDownloaded->text = $this->formatBytes($bytes);
         }        
 
@@ -433,7 +417,7 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         }
         
         if(is_object($this->labelThreads) and method_exists($this->labelThreads, 'settext')){
-            $this->labelThreads->text = $this->getThreadsCount();
+            $this->labelThreads->text = $threads;
         }
 
         if(is_object($this->labelTimeLeft) and method_exists($this->labelTimeLeft, 'settext')){
@@ -463,7 +447,7 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
             $fc->initialDirectory = $this->savePath;
             $fc->extensionFilters = [['description' => 'Все файлы (*.*)', 'extensions' => ['*.*']]];
             $dwnFile = $fc->showSaveDialog();
-            var_dump(['dwnFile' => $dwnFile]);
+            //var_dump(['dwnFile' => $dwnFile]);
             
             if(is_null($dwnFile)){
                 $this->trigger('abort');
@@ -474,7 +458,6 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
             $this->savePath = fs::parent($dwnFile);
         }
         
-        //var_dump(['this->url' => $this->url]);
         $this->threadCount = (!$avaliable || $this->contentLength == 0) ? 1 : $this->threadCount;
         $this->threadPool = ThreadPool::createFixed($this->threadCount);
         $byteNum = (int) ceil($this->contentLength / $this->threadCount);
@@ -492,51 +475,52 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
                 'complete' => false,
                 'bytes' => 0
             ];
-            try{
 
-                $this->handlePool[$i] = new jURL($this->url);
-                $this->handlePool[$i]->addHttpHeader('Range', 'bytes=' . $from . '-' . $to);
-                $this->handlePool[$i]->setOutputFile($saveFile);
-                $this->handlePool[$i]->setCookieFile($this->cookieFile);
-                $this->handlePool[$i]->setFollowRedirects(true);
-                $this->handlePool[$i]->setAutoReferer(true);    
-                $this->handlePool[$i]->setBufferSize(128 * 1024); // 128 KiB       
-                $this->handlePool[$i]->setProgressFunction(function($ch, $dwnTotal, $dwn, $uplTotal, $upl) use ($i){
-                    $this->onProgresss($i, $dwn);
-                });        
-                
-                $this->threadPool->submit(function() use ($i){
-                    $this->handlePool[$i]->asyncExec(function() use ($i){
-                        $this->handlePool[$i]->close();
-                        $this->onComplete($i);
-                    });
+            $this->handlePool[$i] = new jURL($this->url);
+            $this->handlePool[$i]->addHttpHeader('Range', 'bytes=' . $from . '-' . $to);
+            $this->handlePool[$i]->setOutputFile($saveFile);
+            $this->handlePool[$i]->setCookieFile($this->cookieFile);
+            $this->handlePool[$i]->setFollowRedirects(true);
+            $this->handlePool[$i]->setAutoReferer(true);    
+            $this->handlePool[$i]->setBufferSize(128 * 1024); // 128 KiB       
+            $this->handlePool[$i]->setProgressFunction(function($ch, $dwnTotal, $dwn, $uplTotal, $upl) use ($i){
+                $this->onProgresss($i, $dwn);
+            });        
+            
+            $this->threadPool->submit(function() use ($i){
+                $this->handlePool[$i]->asyncExec(function($result) use ($i){
+                    $errors = $this->handlePool[$i]->getError();
+                    $this->handlePool[$i]->close();
+                    if($result === false){
+                        if($this->isStarted) $this->trigger('error', $errors);
+                        return $this->close();
+                    }
+                        
+                    $this->onComplete($i);
                 });
-            } catch (jURLException $e) {
-                $this->trigger('error');
-                $this->close();
-            }
+            });
+
         }
     }
     
     protected function onComplete($i){
         $this->progressPool[$i]['complete'] = true;
-        //var_dump([$i => 'complete']);
         foreach($this->progressPool as $val){
             if($val['complete'] === false){
                 
                 return;   
             }
         }
-        
-        //var_dump(['ALL' => 'complete']);
-        $this->unionFiles();
-        $this->trigger('complete');
+        if(!$this->isStarted) return;
+
+        $outfile = $this->unionFiles();
+        $this->trigger('complete', ['file' => $outfile]);
+        $this->isStarted = false;
     }
     
     protected function unionFiles(){
        $outfile = $this->savePath . $this->filename;
        $out = FileStream::of($outfile, 'w+');
-       var_dump(['union to' => $outfile]);
        
        foreach($this->progressPool as $p){
            $stream = FileStream::of($p['file'], 'r');
@@ -549,6 +533,6 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
        $out->close();
        $this->close();
        
-       var_dump(['FINISH!' => $outfile]);
+       return $outfile;
     }
 }

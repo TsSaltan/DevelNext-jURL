@@ -97,7 +97,12 @@ namespace bundle\jurl;
          */
         public function asyncExec($callback = null){
             $this->thread = new Thread(function () use ($callback){
-                $result = $this->Exec();
+                try{   
+                    $result = $this->Exec();
+                } catch (jURLException $e) {
+                    $result = false;
+                }
+
                 if(is_callable($callback)){
                     UXApplication::runLater(function () use ($result, $callback) {
                         $callback($result, $this);
@@ -337,7 +342,7 @@ namespace bundle\jurl;
                 }
 
 
-            }/** catch (\php\net\SocketException $e){
+            }/**/ catch (\php\net\SocketException $e){
                 $this->throwError('SocketException: ' . $e->getMessage(), 2);
             } catch (\php\format\ProcessorException $e){
                 $this->throwError('ProcessorException: ' . $e->getMessage(), 3);
