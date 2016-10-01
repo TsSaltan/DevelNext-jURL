@@ -81,10 +81,10 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
      */
      public $labelDownloaded;      
      
-    /**
-     * Объект, куда будет отображено полное количество байтов
-     * @var UXLabel
-     */
+     /**
+      * Объект, куда будет отображено полное количество байтов
+      * @var UXLabel
+      */
      public $labelTotal;     
 
     /**
@@ -121,8 +121,7 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
             $progressPool = [], 
             $tmpName, 
             $tmpPath, 
-            $cookieFile
-            /*$events*/;
+            $cookieFile;
 
 
     public function __construct(){
@@ -150,12 +149,7 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         }
 
         $this->isStarted = true;
-        $this->tmpPath = $this->savePath . $this->tmpName . '/';
-        $this->cookieFile = $this->tmpPath . 'cookie.jurl';
-        fs::makeDir($this->savePath);
-        fs::makeDir($this->tmpPath);
-        fs::makeFile($this->cookieFile);
-        
+
         $this->checkRange();
     }
 
@@ -353,7 +347,6 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         $handle->setReturnBody(false);
         $handle->setFollowRedirects(true);
         $handle->setAutoReferer(true);
-        $handle->setCookieFile($this->cookieFile);
         
         $handle->asyncExec(function($result, $handle){
             $headers = $handle->getConnectionInfo()['responseHeaders'];
@@ -455,8 +448,18 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
                 return;                
             } 
             
-            $this->savePath = fs::parent($dwnFile);
+            $this->savePath = fs::parent($dwnFile) . '/';
         }
+
+        $this->tmpPath = $this->savePath . $this->tmpName . '/';
+        $this->cookieFile = $this->tmpPath . 'cookie.jurl';
+        
+        fs::makeDir($this->savePath);
+        fs::makeDir($this->tmpPath);
+        fs::makeFile($this->cookieFile);
+        
+
+
         
         $this->threadCount = (!$avaliable || $this->contentLength == 0) ? 1 : $this->threadCount;
         $this->threadPool = ThreadPool::createFixed($this->threadCount);
@@ -514,7 +517,7 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         if(!$this->isStarted) return;
 
         $outfile = $this->unionFiles();
-        $this->trigger('complete', ['file' => $outfile]);
+        $this->trigger('complete', ['file' => $outfile, 'path' => $this->savePath]);
         $this->isStarted = false;
     }
     

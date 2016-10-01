@@ -22,9 +22,9 @@ namespace bundle\jurl;
 
     class jURL
     {
-        public $version = '0.6.1';
-
-        const CRLF = "\r\n",
+        const 
+              VERSION = '1.0.1.0',
+              CRLF = "\r\n",
               LOG = false;
 
         private $opts = [],         // Параметры подключения
@@ -124,7 +124,6 @@ namespace bundle\jurl;
             $cookies = NULL;
             $this->boundary = Str::random(90);
             $answer = false;
-            $useBuffer = !(isset($this->opts['outputFile']) and $this->opts['outputFile'] !== false);
             $isMultipart = (is_array($this->opts['postFiles']) and (sizeof($this->opts['postFiles']) > 0));
 
             // Если был редирект, ничего не сбрасываем
@@ -267,19 +266,15 @@ namespace bundle\jurl;
                 // Добавление заголовков в вывод
                 if(isset($this->opts['returnHeaders']) and $this->opts['returnHeaders'] === true){
                     // Если в foreach засунуть $headers, после цикла все данные куда-то исчезнут >:(
-                    $hs = [];
-                    //foreach($this->callConnectionFunc('getHeaderFields') as $k=>$v){
                     foreach($this->responseHeaders as $hk=>$hv){
                         foreach($hv as $kk => $s){
-                            $hs[] = $hk. ((strlen($hk) > 0) ? ': ' : '') . $s;
+                            $headString = $hk. ((strlen($hk) > 0) ? ': ' : '') . $s;
+                            $this->writeBufferStream($headString . self::CRLF);
+                            //$this->getBufferStream()->write($headString . self::CRLF);
                         }
                     }
 
-                    if(sizeof($hs) > 0) {
-                        $h = implode(self::CRLF, $hs);
-                        $h.= self::CRLF . self::CRLF;
-                        $this->buffer->write($h);
-                    }
+                    $this->writeBufferStream(self::CRLF);
                 }
 
                 /**
@@ -303,19 +298,15 @@ namespace bundle\jurl;
 
                 if($this->opts['returnBody'] === true) $this->getInputData();
 
-                if($useBuffer and $this->buffer->length() > 0){
+                if($this->isMemoryBuffer() and $this->buffer->length() > 0){
                     $this->buffer->seek(0);
                     $answer = $this->buffer->readFully();
                 }
                 else $answer = NULL;
-                
-                $this->buffer->close();
 
                 if($this->charset != 'UTF-8'){
                     $answer = Str::Decode($answer, $this->charset);
                 }
-                
-               // $this->log(['URLConnection' => $this->URLConnection]);
 
                 $this->connectionInfo = [
                     'url' => (object) $url,
@@ -373,12 +364,16 @@ namespace bundle\jurl;
          * --RU--
          * Закрыть соединение
          */
-        public function destroyConnection(){
+        private function destroyConnection(){
             $this->log('destroyConnection');
+            if($this->URLConnection instanceof URLConnection)   $this->URLConnection->disconnect();
+        }
+
+        private function closeThreads(){
+            $this->log('closeThreads');
             if($this->thread instanceof Thread)                 $this->thread->interrupt();
             if($this->opts['inputFile'] instanceof FileStream)  $this->opts['inputFile']->close();
             if($this->opts['outputFile'] instanceof FileStream) $this->opts['outputFile']->close();
-            if($this->URLConnection instanceof URLConnection)   $this->URLConnection->disconnect();
             if($this->buffer instanceof MemoryStream)           $this->buffer->close();
         }
 
@@ -387,7 +382,8 @@ namespace bundle\jurl;
          * Остановить выполнение запроса
          */
         public function close(){
-            return $this->destroyConnection();
+            $this->destroyConnection();
+            $this->closeThreads();
         }
 
         /**
@@ -522,6 +518,11 @@ namespace bundle\jurl;
         public function setHttpHeaders($headers){
             $this->opts['httpHeader'] = $headers;
         }
+        
+        // alias //
+        public function setHttpHeader($headers){
+            $this->opts['httpHeader'] = $headers;
+        }
 
         /**
          * --RU--
@@ -575,11 +576,11 @@ namespace bundle\jurl;
          * @param string $file - path/to/file
          */
         public function setOutputFile($file){
-            $this->opts['outputFile'] = $file;
+            $this->opts['outputFile'] = ($file === false || $file === null) ? $file : FileStream::of($file, 'w+');
         }
         // alias //
         public function setFileStream($file){
-            $this->opts['outputFile'] = $file;
+            $this->setOutputFile($file);
         }
 
         /**
@@ -733,14 +734,12 @@ namespace bundle\jurl;
         }
 
         private function createConnection(){
-            //Устанавливаем прокси-соединение
+            // Устанавливаем прокси-соединение
             if(isset($this->opts['proxy']) and $this->opts['proxy'] !== false){
                 $ex = Str::Split($this->opts['proxy'], ':');
                 $proxy = new Proxy($this->opts['proxyType'], $ex[0], $ex[1]);
             }
                 
-            // $this->log(['Options' => $this->opts]);
-
             $this->URLConnection = URLConnection::Create($this->opts['url'], $proxy);
             $this->URLConnection->doInput = true;
             $this->URLConnection->doOutput = ($this->opts['body'] !== false || $this->opts['postData'] !== false || $this->opts['postFiles'] !== false);       
@@ -755,7 +754,7 @@ namespace bundle\jurl;
         private function resetBufferParams(){
             $this->requestLength = 0;
             $this->responseLength = 0;
-            $this->buffer = new MemoryStream;
+            if(!($this->buffer instanceof MemoryStream)) $this->buffer = new MemoryStream;
         }
 
         /*
@@ -779,10 +778,7 @@ namespace bundle\jurl;
             $data = $input->read($this->opts['bufferSize']);
             $this->responseLength += Str::Length($data);
 
-            if($this->opts['outputFile'] instanceof FileStream){
-                $this->opts['outputFile']->write($data);
-            }
-            else $this->buffer->write($data);
+            $this->writeBufferStream($data);
 
             $this->callProgressFunction($this->getConnectionParam('contentLength'), $this->responseLength, $this->responseLength, $this->responseLength);
         }
@@ -791,13 +787,6 @@ namespace bundle\jurl;
          * Читает входной поток данных
          */
         private function getInputData(){
-            $this->resetBufferParams();
-
-            if(isset($this->opts['outputFile']) and $this->opts['outputFile'] !== false){
-                $this->opts['outputFile'] = ($this->opts['outputFile'] instanceof FileStream) ? $this->opts['outputFile'] : FileStream::of($this->opts['outputFile'], 'w+');
-            }
-            else $this->opts['outputFile'] = false;
-
             $in = $this->callConnectionFunc('getInputStream');
             $this->loadToBuffer($in);
 
@@ -805,9 +794,6 @@ namespace bundle\jurl;
                 $this->loadToBuffer($in);
             }   
             $this->callProgressFunction($this->getConnectionParam('contentLength'), $this->getConnectionParam('contentLength'), $this->responseLength, $this->responseLength);
-         
-
-            return $this->buffer;
         }
 
         /**
@@ -854,8 +840,6 @@ namespace bundle\jurl;
          * Отправляет файлы в выходной поток данных
          */
         private function sendOutputData($files){
-            $this->resetBufferParams();
-
             // Для начала узнаем общий размер файлов для progressFunction
             $totalSize = 0;
             if($this->issetProgressFunction()){           
@@ -867,15 +851,26 @@ namespace bundle\jurl;
             }
 
             foreach ($files as $fKey => $file) {
-
                 $fileName = File::of($file)->getName();
                 $fStream = new FileStream($file, 'r+');
-
                 $this->sendMultipartData($fKey, $fStream, $fileName, $totalSize);
+            }            
+        }
 
+        private function isMemoryBuffer(){
+            return !(isset($this->opts['outputFile']) and $this->opts['outputFile'] instanceof FileStream);
+        }
+
+        private function writeBufferStream($data){
+            $this->getBufferStream()->write($data);
+        }
+
+        private function getBufferStream(){
+            if($this->isMemoryBuffer()){
+                return $this->buffer;
             }
-        
             
+            return $this->opts['outputFile'];
         }
 
         /*
@@ -1029,7 +1024,7 @@ namespace bundle\jurl;
          * Генерирует дефолтный User-Agent
          */
         private function genUserAgent(){
-            return 'jURL/'.$this->version.' (Java/'. System::getProperty('java.version') .'; '. System::getProperty('os.name') .'; DevelNext)';
+            return 'jURL/'. self::VERSION .' (Java/'. System::getProperty('java.version') .'; '. System::getProperty('os.name') .'; DevelNext)';
         }
 
         /**
@@ -1056,5 +1051,31 @@ namespace bundle\jurl;
 
         private function Log($data){
             if(self::LOG) Logger::Debug('[jURL] ' . var_export($data, true));
+        }
+
+        public static function requreVersion($version){
+            $c = explode('.', self::VERSION);
+            $r = explode('.', $version);
+
+            for($i = 0; $i < 4; ++$i){
+                $c[$i] = str::format('%03d', intval(isset($c[$i])?$c[$i]:0));
+                $r[$i] = str::format('%03d', intval(isset($r[$i])?$r[$i]:0));
+            }
+
+            $current = intval(implode('', $c));
+            $require = intval(implode('', $r));
+
+            if($require > $current) {
+                if(
+                    uiConfirm("Нужно обновить пакет расширений jURL! \nНеобходимая версия: $version \nУстановлен пакет версии: " . self::VERSION. "\n\n Завершить приложение и обновиться?")
+                ) {
+                    browse('https://github.com/TsSaltan/DevelNext-jURL/releases/latest');
+                    app()->shutdown();
+                } 
+                return false;
+             }
+
+            
+            return true;
         }
     }
