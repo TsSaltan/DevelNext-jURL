@@ -20,7 +20,7 @@
 * **[Тема на форуме](http://community.develstudio.org/showthread.php/13145-cURL-в-DevelNext)**
 
 ### Changelog
-````
+```
 --- 1.0.1 ---
 [Fix] Ошибка, возникающая если перед скачиванием файлов был редирект
 [Fix] Заголовки не выводятся в файл при setReturnHeaders(true)
