@@ -97,7 +97,13 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
      * Объект, куда будет отображено прошедшее время
      * @var UXLabel
      */
-     public $labelTimePassed;
+     public $labelTimePassed;  
+	 
+    /**
+     * Объект, куда будет отображено имя файла
+     * @var UXLabel
+     */
+     public $labelFileName;
 
     /**
      * Кнопка, запускающая загрузку
@@ -110,8 +116,19 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
      * @var UXButton
      */
      public $buttonStop;
+	 
+    /**
+     * Параметры jURL
+     * @var array
+     */
+     public $jurlParams = [];
     
-    
+	/**
+     * jURL connection
+     * @var jURL
+     */
+    private $handle;
+	
     private $isStarted = false,
             $contentLength = 0, 
             $startTime,
@@ -150,8 +167,16 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
 
         $this->isStarted = true;
 
-        $this->checkRange();
+        $this->checkDownload(function($avaliable){
+            $this->onCheckRange($avaliable);
+		});
     }
+	
+	public function checkDownload($callback){
+		$this->checkRange(function($avaliable) use ($callback){
+            $callback($avaliable);
+		});
+	}
 
     protected function applyImpl($target){
         $this->_bindAction($this->buttonStart, function () {
@@ -172,6 +197,7 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         $this->labelTotal = $this->getNode($this->labelTotal);   
         $this->labelTimeLeft = $this->getNode($this->labelTimeLeft);         
         $this->labelTimePassed = $this->getNode($this->labelTimePassed);
+        $this->labelFileName = $this->getNode($this->labelFileName);
         $this->buttonStart = $this->getNode($this->buttonStart);
         $this->buttonStop = $this->getNode($this->buttonStop);
 
@@ -326,6 +352,8 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         if(is_object($this->buttonStart) and method_exists($this->buttonStart, 'on')){
             $this->buttonStart->enabled = true;
         }
+
+        $this->resetCheckResult();
     }
     
     /**
@@ -336,22 +364,31 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         $this->trigger('abort');
         $this->close();
     }
-        
-    protected function checkRange(){
+     
+	private $checkResult = null;
+    private function resetCheckResult(){
+        $this->checkResult = null;
+    }
+
+    private function checkRange($callback){
+		if($this->checkResult !== null) return $callback($this->checkResult);
+		
         $this->trigger('start', [$this->url]);
 
-
-        $handle = new jURL($this->url);
-        $handle->setRequestMethod('HEAD');
-        $handle->setReturnHeaders(true);
-        $handle->setReturnBody(false);
-        $handle->setFollowRedirects(true);
-        $handle->setAutoReferer(true);
+        $this->handle = new jURL($this->url);
+        $this->handle->setRequestMethod('GET');
+        $this->handle->setReturnHeaders(true);
+        $this->handle->setReturnBody(false);
+        $this->handle->setFollowRedirects(true);
+        $this->handle->setAutoReferer(true);
+		$this->handle->setBufferSize(128 * 1024); // 128 KiB    
+		
+        $this->applyHandleParams();
         
-        $handle->asyncExec(function($result, $handle){
+        $this->handle->asyncExec(function($result, $handle) use ($callback){
             $headers = $handle->getConnectionInfo()['responseHeaders'];
             $errors = $handle->getError();
-            $handle->close();
+            //$handle->close();
 
             if($result === false){
                 if($this->isStarted) $this->trigger('error', $errors);
@@ -362,14 +399,19 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
             
             if(isset($headers['Accept-Ranges'][0]) and $headers['Accept-Ranges'][0] == 'bytes' and isset($headers['Content-Length'][0])){
                 $this->contentLength = $headers['Content-Length'][0];
-                return $this->onCheckRange(true);
+                $this->checkResult = true;
             }
-            
-            $this->onCheckRange(false);
+            else $this->checkResult = false;
+			
+			$callback($this->checkResult);
         });
 
     }
-
+	
+	protected function applyHandleParams(){
+		$this->handle->setOpts($this->jurlParams);
+	}
+	
     protected function findDownloadName($headers){
         if(isset($headers['Content-Disposition'])){
             $regex = Regex::of('filename="([^"]+)"', Regex::CASE_INSENSITIVE + Regex::MULTILINE)->with($headers['Content-Disposition'][0]);
@@ -378,7 +420,15 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
             }
         }
         
-        else $this->filename = explode('?', basename($this->url))[0];
+        else {
+			$this->filename = explode('?', basename($this->url))[0];
+			//$this->trigger('error', 'downloaded file not found');
+			//$this->close();
+		}
+		
+		if(is_object($this->labelFileName) and method_exists($this->labelFileName, 'settext')){
+            $this->labelFileName->text = $this->filename;
+        }
     }
 
     protected function onProgresss($i, $bytes){
@@ -440,7 +490,6 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
             $fc->initialDirectory = $this->savePath;
             $fc->extensionFilters = [['description' => 'Все файлы (*.*)', 'extensions' => ['*.*']]];
             $dwnFile = $fc->showSaveDialog();
-            //var_dump(['dwnFile' => $dwnFile]);
             
             if(is_null($dwnFile)){
                 $this->trigger('abort');
@@ -449,6 +498,11 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
             } 
             
             $this->savePath = fs::parent($dwnFile) . '/';
+			$this->filename = basename($dwnFile);
+			
+			if(is_object($this->labelFileName) and method_exists($this->labelFileName, 'settext')){
+				$this->labelFileName->text = $this->filename;
+			}
         }
 
         $this->tmpPath = $this->savePath . $this->tmpName . '/';
@@ -457,9 +511,6 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         fs::makeDir($this->savePath);
         fs::makeDir($this->tmpPath);
         fs::makeFile($this->cookieFile);
-        
-
-
         
         $this->threadCount = (!$avaliable || $this->contentLength == 0) ? 1 : $this->threadCount;
         $this->threadPool = ThreadPool::createFixed($this->threadCount);
@@ -479,19 +530,28 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
                 'bytes' => 0
             ];
 
-            $this->handlePool[$i] = new jURL($this->url);
+            $this->handlePool[$i] = clone $this->handle;
             $this->handlePool[$i]->addHttpHeader('Range', 'bytes=' . $from . '-' . $to);
+            $this->handlePool[$i]->setRequestMethod('GET');
             $this->handlePool[$i]->setOutputFile($saveFile);
             $this->handlePool[$i]->setCookieFile($this->cookieFile);
+            $this->handlePool[$i]->setReturnHeaders(false);
+            $this->handlePool[$i]->setReturnBody(true);
             $this->handlePool[$i]->setFollowRedirects(true);
-            $this->handlePool[$i]->setAutoReferer(true);    
-            $this->handlePool[$i]->setBufferSize(128 * 1024); // 128 KiB       
+            $this->handlePool[$i]->setAutoReferer(true);       
             $this->handlePool[$i]->setProgressFunction(function($ch, $dwnTotal, $dwn, $uplTotal, $upl) use ($i){
                 $this->onProgresss($i, $dwn);
             });        
-            
-            $this->threadPool->submit(function() use ($i){
-                $this->handlePool[$i]->asyncExec(function($result) use ($i){
+		
+		
+            $this->threadPool->submit(function() use ($i, $from, $to){
+                $this->handlePool[$i]->asyncExec(function($result) use ($i, $from, $to){
+					/*var_dump([
+						'i' => $i,
+						'from' => $from, 
+						'to' => $to,
+						'heads' => curl_getinfo($this->handlePool[$i])
+					]);*/
                     $errors = $this->handlePool[$i]->getError();
                     $this->handlePool[$i]->close();
                     if($result === false){

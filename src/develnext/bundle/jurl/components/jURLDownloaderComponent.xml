@@ -14,6 +14,7 @@
 
     <properties group="out" title="Вывод" sort="2000">
         <property code="fieldUrl" name="Ссылка для загрузки [Поле ввода]" editor="object" />
+        <property code="labelFileName" name="Имя файла [Текст]" editor="object" />
         <property code="progressBar" name="Прогресс загрузки [Прогресс-бар]" editor="object" />
         <property code="labelProgress" name="Процент загрузки [Текст]" editor="object" />
         <property code="labelSpeed" name="Скорость загрузки [Текст]" editor="object" />

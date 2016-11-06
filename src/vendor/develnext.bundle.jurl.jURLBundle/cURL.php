@@ -17,7 +17,13 @@ class cURL{
 
 }
 
-define('CURLOPT_URL', 'CURLOPT_URL');
+// Пока define некорректно работает в jphp
+define('CURLINFO_HTTP_CODE', 'responseCode');
+define('CURLINFO_RESPONSE_CODE', 'responseCode');
+define('CURLINFO_TOTAL_TIME', 'executeTime');
+define('CURLINFO_SIZE_UPLOAD', 'requestLength');
+define('CURLINFO_SIZE_DOWNLOAD', 'responseLength');
+define('CURLINFO_CONTENT_TYPE', 'contentType');
 
 if(!function_exists('curl_init')){
 
@@ -188,8 +194,9 @@ if(!function_exists('curl_init')){
     * @param jURL $ch - Дескриптор cURL, полученный из curl_init
     * @return array
     */
-   function curl_getinfo(jURL $ch){
-       return $ch->getConnectionInfo();
+   function curl_getinfo(jURL $ch, $opt = null){
+       $info = $ch->getConnectionInfo();
+	   return (!is_null($opt) and isset($info[$opt])) ? $info[$opt] : $info;
    }
    
    /**

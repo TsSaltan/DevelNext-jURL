@@ -23,7 +23,7 @@ namespace bundle\jurl;
     class jURL
     {
         const 
-              VERSION = '1.0.1.0',
+              VERSION = '1.0.2.0',
               CRLF = "\r\n",
               LOG = false;
 
@@ -124,7 +124,7 @@ namespace bundle\jurl;
             $cookies = NULL;
             $this->boundary = Str::random(90);
             $answer = false;
-            $isMultipart = (is_array($this->opts['postFiles']) and (sizeof($this->opts['postFiles']) > 0));
+            // $isMultipart = (is_array($this->opts['postFiles']) and (sizeof($this->opts['postFiles']) > 0));
 
             // Если был редирект, ничего не сбрасываем
             if(!$byRedirect){
@@ -134,7 +134,6 @@ namespace bundle\jurl;
     
             try {    
                 $this->createConnection();
-
                 // Параметры подключения
                 foreach($this->opts as $key => $value){
                     if(!$value || sizeof($value) == 0) continue;
@@ -171,7 +170,7 @@ namespace bundle\jurl;
                         break;
 
                         case 'postData':
-                            if($isMultipart) break;
+                            if($this->isMultipart()) break;
                             $this->callConnectionFunc('setRequestProperty', [ 'Content-Type', 'application/x-www-form-urlencoded' ]);
                         break; 
                         
@@ -194,14 +193,16 @@ namespace bundle\jurl;
 
                     switch($key){                        
                         case 'postData':
-                            if($isMultipart){
+                            if($this->isMultipart()){
                                 foreach($value as $k=>$v){
                                     $this->sendMultipartData($k, $v);
                                 }
                                 break;
                             }
-
-                            $value = http_build_query($value);
+							
+							if(is_array($value)){
+								$value = http_build_query($value);
+							}
                         case 'body':
                             $this->log('sendBody -> '.$key);
                             $this->sendOutStream($value);
@@ -230,7 +231,7 @@ namespace bundle\jurl;
                 }
 
                 // Завершить отправку multipart
-                if($isMultipart) $this->sendMultipartEnd();
+                if($this->isMultipart()) $this->sendMultipartEnd();
 
                 /**
                  * Данные отправлены. Читаем заголовки с сервера.
@@ -321,7 +322,8 @@ namespace bundle\jurl;
                     'executeTime' => $this->getExecuteTime(),
                     'requestHeaders' => $this->requestHeaders,
                     'responseHeaders' => $this->responseHeaders,
-                    'requestLength' => $this->requestLength
+                    'requestLength' => $this->requestLength, // Размер отправленных данных
+                    'responseLength' => $this->responseLength, // Размер полученных данных
                 ];
 
                 $this->log(['connectionInfo', $this->connectionInfo]);
@@ -368,7 +370,15 @@ namespace bundle\jurl;
             $this->log('destroyConnection');
             if($this->URLConnection instanceof URLConnection)   $this->URLConnection->disconnect();
         }
-
+		
+		private function isMultipart(){
+			return (is_array($this->opts['postFiles']) and (sizeof($this->opts['postFiles']) > 0));
+		}
+		
+		private function isError(){
+			return $this->getConnectionParam('responseCode') >= 400;
+		}
+		
         private function closeThreads(){
             $this->log('closeThreads');
             if($this->thread instanceof Thread)                 $this->thread->interrupt();
@@ -608,10 +618,10 @@ namespace bundle\jurl;
         /**
          * --RU--
          * Отправляемые данные, которые нужно преобразовать в POST-запрос
-         * @param array $data - ['key' => 'value']
+         * @param mixed $data Массив либо строка с данными
          */
         public function setPostData($data){
-            if(is_string($data))$data = parse_str($data);
+            // if(is_string($data))$data = parse_str($data);
             $this->opts['postData'] = $data;
         }
 
@@ -787,7 +797,7 @@ namespace bundle\jurl;
          * Читает входной поток данных
          */
         private function getInputData(){
-            $in = $this->callConnectionFunc('getInputStream');
+            $in = $this->isError() ? $this->callConnectionFunc('getErrorStream') : $this->callConnectionFunc('getInputStream');
             $this->loadToBuffer($in);
 
             while(!$in->eof()){
