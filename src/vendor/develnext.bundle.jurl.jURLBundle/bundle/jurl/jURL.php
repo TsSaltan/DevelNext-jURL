@@ -23,7 +23,7 @@ namespace bundle\jurl;
     class jURL
     {
         const 
-              VERSION = '1.0.2.0',
+              VERSION = '1.0.3.0',
               CRLF = "\r\n",
               LOG = false;
 
@@ -838,6 +838,7 @@ namespace bundle\jurl;
                 while(!$source->eof()){
                     $this->sendData($source, $totalSize);
                 }
+                $source->close();
             } else {
                 $this->sendOutStream(self::CRLF);
                 $this->sendOutStream($source);
