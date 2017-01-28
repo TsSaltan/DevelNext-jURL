@@ -11,6 +11,7 @@ namespace bundle\jurl;
         php\io\Stream,
         php\lang\System,
         php\lang\Thread,
+        php\lib\fs,
         php\lib\Str,
         php\net\Proxy,
         php\net\URL,
@@ -23,9 +24,9 @@ namespace bundle\jurl;
     class jURL
     {
         const 
-              VERSION = '1.0.3.0',
+              VERSION = '1.1.0.0',
               CRLF = "\r\n",
-              LOG = false;
+              LOG = true;
 
         private $opts = [],         // Параметры подключения
                 $URLConnection,     // Соединеие
@@ -71,7 +72,7 @@ namespace bundle\jurl;
                 'proxy'             =>    false,
                 'proxyType'         =>    'HTTP',
                 'bufferSize'        =>    48 * 1024, // 48 KiB
-                'cookieFile'        =>    false,
+                'cookieFile'        =>    false,    // instanceof File
                 'httpHeader'        =>    [],
                 'basicAuth'         =>    false,
                 'httpReferer'       =>    false,
@@ -124,7 +125,6 @@ namespace bundle\jurl;
             $cookies = NULL;
             $this->boundary = Str::random(90);
             $answer = false;
-            // $isMultipart = (is_array($this->opts['postFiles']) and (sizeof($this->opts['postFiles']) > 0));
 
             // Если был редирект, ничего не сбрасываем
             if(!$byRedirect){
@@ -253,15 +253,15 @@ namespace bundle\jurl;
                 $this->log(['responseHeaders' => $this->responseHeaders]);
 
                 // Извлечение кук
+                var_dump(['cook' => $this->opts['cookieFile']]);
                 if(isset($this->opts['cookieFile']) and $this->opts['cookieFile'] !== false){
                     $setCookies = (isset($this->responseHeaders['Set-Cookie']) && is_array($this->responseHeaders['Set-Cookie']))?$this->responseHeaders['Set-Cookie']:[];
                             
                     $newCookies = $this->parseCookies($setCookies, $url->getHost());
                     $saveCookies = $this->uniteCookies($cookies, $newCookies);
 
-                    if(File::of($this->opts['cookieFile'])->canWrite()){
-                        Stream::putContents($this->opts['cookieFile'], $saveCookies);
-                    }
+                    Stream::putContents($this->opts['cookieFile'], $saveCookies);
+                    
                 }
     
                 // Добавление заголовков в вывод
@@ -271,7 +271,6 @@ namespace bundle\jurl;
                         foreach($hv as $kk => $s){
                             $headString = $hk. ((strlen($hk) > 0) ? ': ' : '') . $s;
                             $this->writeBufferStream($headString . self::CRLF);
-                            //$this->getBufferStream()->write($headString . self::CRLF);
                         }
                     }
 
@@ -517,7 +516,16 @@ namespace bundle\jurl;
          * @param string $file
          */
         public function setCookieFile($file){
-            $this->opts['cookieFile'] = $file;
+            if(is_string($file)){
+                $this->opts['cookieFile'] = $file;
+
+                if(!fs::exists($file)){
+                    fs::makeFile($file);
+                }
+            }
+            else $this->opts['cookieFile'] = false;
+
+            var_dump(['setCookieFile' => $file, $this->opts['cookieFile']]);
         }
 
         /**
@@ -684,7 +692,7 @@ namespace bundle\jurl;
         public function setOpt($key, $value){
             $func = 'set' . $key;
             if(method_exists($this, $func)){
-                $this->$func($value);
+                call_user_func_array([$this, $func], [$value]);
             }
         }
 
@@ -860,6 +868,8 @@ namespace bundle\jurl;
                     $s->close();
                 }
             }
+
+            $this->log(['totalSize' => $totalSize]);
 
             foreach ($files as $fKey => $file) {
                 $fileName = File::of($file)->getName();

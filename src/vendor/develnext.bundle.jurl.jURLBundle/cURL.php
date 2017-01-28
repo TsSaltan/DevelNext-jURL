@@ -8,7 +8,8 @@
 
 namespace;
 
-use php\lib\Str,
+use cURLFile,
+	php\lib\Str,
     bundle\jurl\jURL,
     bundle\jurl\jURLException;
 
@@ -98,9 +99,6 @@ if(!function_exists('curl_init')){
            }
            $value = $headers;
        }
-       /*elseif($key == 'CURLOPT_POST' AND $value === true){
-           return $ch->setOpt('requestMethod', 'POST');
-       }*/
        elseif($key == 'CURLOPT_CONNECTTIMEOUT' OR $key == 'CURLOPT_TIMEOUT'){
            $value = $value * 1000;
        }
@@ -108,8 +106,11 @@ if(!function_exists('curl_init')){
            $str = [];
            $files = [];
            foreach($value as $k=>$v){
-               if(Str::Sub($v, 0, 1) == '@')$files[$k] = Str::Sub($v, 1, Str::Length($v));
-               else $str[$k] = $v;
+           		$v = (string) $v;
+                if(Str::Sub($v, 0, 1) == '@'){
+                	$files[$k] = Str::Sub($v, 1, Str::Length($v));
+                }
+                else $str[$k] = $v;
            }
            if(sizeof($files) > 0) $ch->setOpt('postFiles', $files);
            $value = $str;
@@ -214,6 +215,16 @@ if(!function_exists('curl_init')){
     */
    function curl_reset(jURL $ch){
        return $ch->reset();
+   }
+
+
+   /**
+    * --RU--
+    * Создает объект CURLFile
+    * @param string $filename Path to the file which will be uploaded.
+    */
+   function curl_file_create($filename){
+       return (string) (new cURLFile($filename));
    }
 }
 
