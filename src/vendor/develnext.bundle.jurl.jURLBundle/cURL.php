@@ -9,8 +9,9 @@
 namespace;
 
 use cURLFile,
-	php\lib\Str,
+    php\lib\Str,
     bundle\jurl\jURL,
+    bundle\jurl\jURLFile,
     bundle\jurl\jURLException;
 
 // Для autoloader'а
@@ -66,6 +67,7 @@ if(!function_exists('curl_init')){
            'CURLOPT_HTTPHEADER' => 'httpHeader',
            'CURLOPT_USERPWD' => 'basicAuth',
            'CURLOPT_PROXY' => 'proxy',
+           'CURLOPT_PROXYUSERPWD' => 'proxyAuth',
            'CURLOPT_PROXYTYPE' => 'proxyType',
            'CURLOPT_PROGRESSFUNCTION' => 'progressFunction',
            'CURLOPT_FILE' => 'outputFile',
@@ -105,12 +107,12 @@ if(!function_exists('curl_init')){
        elseif($key == 'CURLOPT_POSTFIELDS' AND is_array($value)){
            $str = [];
            $files = [];
+
            foreach($value as $k=>$v){
-           		$v = (string) $v;
-                if(Str::Sub($v, 0, 1) == '@'){
-                	$files[$k] = Str::Sub($v, 1, Str::Length($v));
-                }
-                else $str[$k] = $v;
+               if($v instanceof jURLFile || Str::Sub($v, 0, 1) == '@'){
+                   $files[$k] = $v; 
+               }
+               else $str[$k] = $v;
            }
            if(sizeof($files) > 0) $ch->setOpt('postFiles', $files);
            $value = $str;
@@ -220,11 +222,13 @@ if(!function_exists('curl_init')){
 
    /**
     * --RU--
-    * Создает объект CURLFile
+    * Создает объект cURLFile
     * @param string $filename Path to the file which will be uploaded.
+    * @param string $mimetype = NULL
+    * @param string $postname = NULL
     */
-   function curl_file_create($filename){
-       return (string) (new cURLFile($filename));
+   function curl_file_create($filename, $mimetype = NULL, $postname = NULL){
+       return new jURLFile($filename, $mimetype, $postname);
    }
 }
 

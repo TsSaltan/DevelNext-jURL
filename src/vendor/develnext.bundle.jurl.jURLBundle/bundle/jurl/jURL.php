@@ -3,6 +3,7 @@ namespace bundle\jurl;
 
     use bundle\jurl\jURLAbortException,
         bundle\jurl\jURLException,
+        bundle\jurl\jURLFile,
         php\framework\Logger,
         php\gui\UXApplication,
         php\io\File,
@@ -26,7 +27,7 @@ namespace bundle\jurl;
         const 
               VERSION = '1.1.0.0',
               CRLF = "\r\n",
-              LOG = true;
+              LOG = false;
 
         private $opts = [],         // Параметры подключения
                 $URLConnection,     // Соединеие
@@ -75,6 +76,7 @@ namespace bundle\jurl;
                 'cookieFile'        =>    false,    // instanceof File
                 'httpHeader'        =>    [],
                 'basicAuth'         =>    false,
+                'proxyAuth'         =>    false,
                 'httpReferer'       =>    false,
 
                 'progressFunction'  =>    null,
@@ -169,6 +171,10 @@ namespace bundle\jurl;
                             $this->callConnectionFunc('setRequestProperty', [ 'Authorization', 'Basic ' . base64_encode($value) ]);
                         break;
 
+                        case 'proxyAuth':
+                            $this->callConnectionFunc('setRequestProperty', [ 'Proxy-Authorization', 'Basic ' . base64_encode($value) ]);
+                        break;
+
                         case 'postData':
                             if($this->isMultipart()) break;
                             $this->callConnectionFunc('setRequestProperty', [ 'Content-Type', 'application/x-www-form-urlencoded' ]);
@@ -225,7 +231,8 @@ namespace bundle\jurl;
 
                         case 'postFiles':
                             $this->log('sendBody -> '.$key);
-                            $this->sendOutputData((is_array($value))?$value:[$value]);
+                            // $this->sendOutputData((is_array($value))?$value:[$value]); // А как он может быть не array?
+                            $this->sendOutputData($value);
                         break;
                     }
                 }
@@ -253,7 +260,6 @@ namespace bundle\jurl;
                 $this->log(['responseHeaders' => $this->responseHeaders]);
 
                 // Извлечение кук
-                var_dump(['cook' => $this->opts['cookieFile']]);
                 if(isset($this->opts['cookieFile']) and $this->opts['cookieFile'] !== false){
                     $setCookies = (isset($this->responseHeaders['Set-Cookie']) && is_array($this->responseHeaders['Set-Cookie']))?$this->responseHeaders['Set-Cookie']:[];
                             
@@ -499,6 +505,15 @@ namespace bundle\jurl;
 
         /**
          * --RU--
+         * Установка Basic-авторизации
+         * @param string $auth - "login:password" || false
+         */
+        public function setProxyAuth($auth){
+            $this->opts['proxyAuth'] = $auth;
+        }
+
+        /**
+         * --RU--
          * Установка размера буфера обмена данными
          */
         public function setBufferSize($type){
@@ -524,8 +539,6 @@ namespace bundle\jurl;
                 }
             }
             else $this->opts['cookieFile'] = false;
-
-            var_dump(['setCookieFile' => $file, $this->opts['cookieFile']]);
         }
 
         /**
@@ -638,8 +651,12 @@ namespace bundle\jurl;
          * Файлы, которые будут отправлены на сервер с заголовком "multipart/form-data" (например, при POST-загрузке файлов)
          * @param array $files - ['name' => 'path/to/file']
          */
-        public function setPostFiles($file){
-            $this->opts['postFiles'] = $file;
+        public function setPostFiles($files){
+            foreach($files as $k => $file){
+                $files[$k] = self::createPostFile($file);
+            }
+            
+            $this->opts['postFiles'] = $files;
         }
 
         /**
@@ -649,7 +666,7 @@ namespace bundle\jurl;
          */
         public function addPostFiles($files){
             foreach ($files as $key => $value) {
-                $this->opts['postFiles'][$key] = $value;
+                $this->addPostFile($key, $value);
             }
         }
 
@@ -657,10 +674,17 @@ namespace bundle\jurl;
          * --RU--
          * Добавляет файл, который будет отправлен на сервер с заголовком "multipart/form-data" (например, при POST-загрузке файлов)
          * @param string $name - имя
-         * @param string $filepath - пуит к файлу
+         * @param string|jURLFile $file - путь к файлу
          */
-        public function addPostFile($name, $filepath){
-            $this->opts['postFiles'][$name] = $filepath;
+        public function addPostFile($name, $file){
+            $this->opts['postFiles'][$name] = self::createPostFile($file);
+        }
+
+        private static function createPostFile($input){
+            if($input instanceof jURLFile) return $input;
+            elseif(str::sub($input, 0, 1) == '@') return new jURLFile(Str::Sub($input, 1, Str::Length($input)));
+
+            return new jURLFile($input);
         }
 
         /**
@@ -824,20 +848,21 @@ namespace bundle\jurl;
 
         /**
          * Отправляет данные в выходной поток в формате multipart
-         * @param string|FileStream $source
+         * @param string|jURLFile $data
          */
-        private function sendMultipartData($key, $source, $fileName = NULL, $totalSize = 0){
-            $isFile = $source instanceof FileStream;
-            $contentType = ($isFile) ? URLConnection::guessContentTypeFromName($fileName) : 'text/plain';
+        private function sendMultipartData($key, $data, $totalSize = 0){
+            $isFile = ($data instanceof jURLFile);
+            $contentType = ($isFile) ? $data->getMimeType() : 'text/plain';
 
             $this->sendOutStream("--" . $this->boundary);
             $this->sendOutStream(self::CRLF);
-            $this->sendOutStream("Content-Disposition: form-data; name=\"$key\"" . ($isFile ? "; filename=\"$fileName\"": NULL));
+            $this->sendOutStream("Content-Disposition: form-data; name=\"$key\"" . ($isFile ? "; filename=\"".$data->getPostFilename()."\"": NULL));
             $this->sendOutStream(self::CRLF);
             $this->sendOutStream("Content-Type: $contentType");
             $this->sendOutStream(self::CRLF);
                                     
             if($isFile){
+                $source = $data->getStream();
                 $this->sendOutStream("Content-Transfer-Encoding: binary");
                 $this->sendOutStream(self::CRLF);
                 $this->sendOutStream(self::CRLF);
@@ -849,7 +874,7 @@ namespace bundle\jurl;
                 $source->close();
             } else {
                 $this->sendOutStream(self::CRLF);
-                $this->sendOutStream($source);
+                $this->sendOutStream($data);
             }
 
             $this->sendOutStream(self::CRLF);
@@ -863,7 +888,7 @@ namespace bundle\jurl;
             $totalSize = 0;
             if($this->issetProgressFunction()){           
                 foreach ($files as $file) {
-                    $s = new FileStream($file, 'r+');
+                    $s = $file->getStream();
                     $totalSize += $s->length();
                     $s->close();
                 }
@@ -872,9 +897,7 @@ namespace bundle\jurl;
             $this->log(['totalSize' => $totalSize]);
 
             foreach ($files as $fKey => $file) {
-                $fileName = File::of($file)->getName();
-                $fStream = new FileStream($file, 'r+');
-                $this->sendMultipartData($fKey, $fStream, $fileName, $totalSize);
+                $this->sendMultipartData($fKey, $file, $totalSize);
             }            
         }
 
@@ -1071,7 +1094,7 @@ namespace bundle\jurl;
         }
 
         private function Log($data){
-            if(self::LOG) Logger::Debug('[jURL] ' . var_export($data, true));
+            if(self::LOG) Logger::Info('[jURL] ' . var_export($data, true));
         }
 
         public static function requreVersion($version){
