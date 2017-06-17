@@ -211,6 +211,7 @@ namespace bundle\jurl;
 
                     }
                 }
+                $this->requestHeaders = $this->callConnectionFunc('getRequestProperties');
                 $this->log(['Connected to' => $this->opts['url']]);
 
                 // Подключились. Отправляем данные на сервер.
@@ -266,7 +267,7 @@ namespace bundle\jurl;
                  * Нельзя использовать switch case, т.к. если первым будет followRedirects,
                  * а после него cookieFile, то куки не будут прочитаны и сохранены
                  */
-                $this->requestHeaders = $this->callConnectionFunc('getRequestProperties');
+                
                 $this->responseHeaders = $this->callConnectionFunc('getHeaderFields');
                 foreach($this->responseHeaders as $headerKey => $headerValue){
                     unset($this->responseHeaders[$headerKey]);
@@ -379,7 +380,7 @@ namespace bundle\jurl;
                 }
 
 
-            }/** / catch (\php\net\SocketException $e){
+            }/**/ catch (\php\net\SocketException $e){
                 $this->throwError('SocketException: ' . $e->getMessage(), 2);
             } catch (\php\format\ProcessorException $e){
                 $this->throwError('ProcessorException: ' . $e->getMessage(), 3);
