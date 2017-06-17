@@ -25,7 +25,7 @@ namespace bundle\jurl;
     class jURL
     {
         const 
-              VERSION = '1.1.0.0',
+              VERSION = '1.2.0.0',
               CRLF = "\r\n",
               LOG = false;
 
@@ -136,6 +136,19 @@ namespace bundle\jurl;
     
             try {    
                 $this->createConnection();
+
+                    /*if(!$byRedirect){
+                        $this->sendOutStream(
+                            'CONNECT '. $this->callConnectionFunc('getRequestProperties')['Host'][0] .':443 HTTP/1.0' . self::CRLF .
+                            'User-agent: ' . $this->opts['userAgent'] . self::CRLF .
+                            'Proxy-Authorization: Basic ' . base64_encode($this->opts['proxyAuth']) . self::CRLF
+                        );
+                        
+                        var_dump(['code' => $this->getConnectionParam('responseCode')]);
+                        //return $this->exec(true);
+                    }*/
+
+                    
                 // Параметры подключения
                 foreach($this->opts as $key => $value){
                     if(!$value || sizeof($value) == 0) continue;
@@ -172,6 +185,14 @@ namespace bundle\jurl;
                         break;
 
                         case 'proxyAuth':
+                           /*                 if(!$byRedirect){
+                        $this->sendOutStream(
+                            'CONNECT '. $this->callConnectionFunc('getRequestProperties')['Host'][0] .' HTTP/1.1' . self::CRLF .
+                            'User-agent: ' . $this->opts['userAgent'] . self::CRLF .
+                            'Proxy-authorization: basic ' . base64_encode($this->opts['proxyAuth']) . self::CRLF
+                        );*/
+
+                            //$this->callConnectionFunc('setRequestProperty', [ '', 'CONNECT '. $this->callConnectionFunc('getRequestProperties')['Host'][0] .':443 HTTP/1.1' ]);
                             $this->callConnectionFunc('setRequestProperty', [ 'Proxy-Authorization', 'Basic ' . base64_encode($value) ]);
                         break;
 
@@ -190,7 +211,6 @@ namespace bundle\jurl;
 
                     }
                 }
-                $this->requestHeaders = $this->callConnectionFunc('getRequestProperties');
                 $this->log(['Connected to' => $this->opts['url']]);
 
                 // Подключились. Отправляем данные на сервер.
@@ -246,6 +266,7 @@ namespace bundle\jurl;
                  * Нельзя использовать switch case, т.к. если первым будет followRedirects,
                  * а после него cookieFile, то куки не будут прочитаны и сохранены
                  */
+                $this->requestHeaders = $this->callConnectionFunc('getRequestProperties');
                 $this->responseHeaders = $this->callConnectionFunc('getHeaderFields');
                 foreach($this->responseHeaders as $headerKey => $headerValue){
                     unset($this->responseHeaders[$headerKey]);
@@ -298,6 +319,23 @@ namespace bundle\jurl;
                     $this->setOpt('url', $redirectUrl);
                     return $this->Exec(true);
                 }
+
+                /*/ Необходима авторизация на прокси сервере
+                if($this->getConnectionParam('responseCode') == 407){
+                    $this->log('Proxy-auth required');
+                    $this->log([ 'requestHeaders' => $this->callConnectionFunc('getRequestProperties'),
+                    ]);
+                    if(!$byRedirect){
+                        $this->sendOutStream(
+                            'CONNECT '. $this->callConnectionFunc('getRequestProperties')['Host'][0] .':443 HTTP/1.0' . self::CRLF .
+                            'User-agent: ' . $this->opts['userAgent'] . self::CRLF .
+                            'Proxy-Authorization: Basic ' . base64_encode($this->opts['proxyAuth']) . self::CRLF
+                        );
+                        
+                        //var_dump(['code' => $this->getConnectionParam('responseCode')]);
+                        //return $this->exec(true);
+                    }
+                }*/
                 
                 // По заголовку content-type получаем кодировку, чтоб потом декодировать данные
                 $this->detectCharset($this->getConnectionParam('contentType'));
@@ -325,6 +363,7 @@ namespace bundle\jurl;
                     'lastModified' => $this->getConnectionParam('lastModified'),
                     'usingProxy' => $this->getConnectionParam('usingProxy'),
                     'executeTime' => $this->getExecuteTime(),
+                    //'requestHeaders' => $this->callConnectionFunc('getRequestProperties'),
                     'requestHeaders' => $this->requestHeaders,
                     'responseHeaders' => $this->responseHeaders,
                     'requestLength' => $this->requestLength, // Размер отправленных данных
@@ -333,14 +372,14 @@ namespace bundle\jurl;
 
                 $this->log(['connectionInfo', $this->connectionInfo]);
                 $this->log(['Output Log', $this->outLog]);
-                $this->log(['Answer', $answer]);
+                $this->log(['Answer Length', str::length($answer)]);
                 
                 if($errorStream = $this->callConnectionFunc('getErrorStream')->readFully() and str::length($errorStream) > 0){
                     $this->throwError('errorStream: ' . $errorStream, 1);
                 }
 
 
-            }/**/ catch (\php\net\SocketException $e){
+            }/** / catch (\php\net\SocketException $e){
                 $this->throwError('SocketException: ' . $e->getMessage(), 2);
             } catch (\php\format\ProcessorException $e){
                 $this->throwError('ProcessorException: ' . $e->getMessage(), 3);
@@ -381,7 +420,9 @@ namespace bundle\jurl;
 		}
 		
 		private function isError(){
-			return $this->getConnectionParam('responseCode') >= 400;
+            $responseCode = $this->getConnectionParam('responseCode');
+            $this->log(['responseCode' => $responseCode]);
+			return $responseCode >= 400;
 		}
 		
         private function closeThreads(){
@@ -748,7 +789,7 @@ namespace bundle\jurl;
 
         private function callConnectionFunc($func, $params = []){
             if(!is_object($this->URLConnection)) throw new jURLAbortException("Aborted");
-
+            $this->log(['callConnectionFunc', [$func, $params]]);
             return call_user_func_array([$this->URLConnection, $func], $params);
         }
 
@@ -794,9 +835,14 @@ namespace bundle\jurl;
          * Сброс переменных, отвечающих за буфер, его размер и размер пересылаемых и получаемых данных
          */
         private function resetBufferParams(){
+            $this->log('resetBufferParams');
             $this->requestLength = 0;
             $this->responseLength = 0;
-            if(!($this->buffer instanceof MemoryStream)) $this->buffer = new MemoryStream;
+            $this->buffer = new MemoryStream;
+
+            /*if(!($this->buffer instanceof MemoryStream)) $this->buffer = new MemoryStream;
+            else $this->buffer->seek($this->buffer->length);
+            //*/
         }
 
         /*
