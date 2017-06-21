@@ -25,7 +25,7 @@ namespace bundle\jurl;
     class jURL
     {
         const 
-              VERSION = '1.2.0.0',
+              VERSION = '1.2.0.1',
               CRLF = "\r\n",
               LOG = false;
 
@@ -128,12 +128,15 @@ namespace bundle\jurl;
             $this->boundary = Str::random(90);
             $answer = false;
 
-            // Если был редирект, ничего не сбрасываем
-            if(!$byRedirect){
-                $this->resetConnectionParams();
+            // Если был редирект, сбрасываем только некоторые параметры
+            if($byRedirect){
+                $this->clearConnectionParams();
             }            
-            else $this->destroyConnection();
-    
+            else {
+                $this->destroyConnection();
+                $this->resetConnectionParams();
+            }
+
             try {    
                 $this->createConnection();
 
@@ -175,6 +178,7 @@ namespace bundle\jurl;
                         break;
 
                         case 'httpHeader':
+                            $this->log(['Send user\'s httpHeader' => $value]);
                             foreach($value as $h){
                                 $this->callConnectionFunc('setRequestProperty', [$h[0], $h[1]]);
                             }
@@ -231,7 +235,7 @@ namespace bundle\jurl;
 								$value = http_build_query($value);
 							}
                         case 'body':
-                            $this->log('sendBody -> '.$key);
+                            $this->log('sendBody -> ' . $key . ":" . $value);
                             $this->sendOutStream($value);
                             $this->requestLength += Str::Length($value);
                         break; 
@@ -413,7 +417,11 @@ namespace bundle\jurl;
          */
         private function destroyConnection(){
             $this->log('destroyConnection');
-            if($this->URLConnection instanceof URLConnection)   $this->URLConnection->disconnect();
+            
+            if($this->URLConnection instanceof URLConnection){
+                $this->URLConnection->disconnect();
+            }
+            //$this->URLConnection = null;
         }
 		
 		private function isMultipart(){
@@ -833,24 +841,13 @@ namespace bundle\jurl;
         }
 
         /*
-         * Сброс переменных, отвечающих за буфер, его размер и размер пересылаемых и получаемых данных
-         */
-        private function resetBufferParams(){
-            $this->log('resetBufferParams');
-            $this->requestLength = 0;
-            $this->responseLength = 0;
-            $this->buffer = new MemoryStream;
-
-            /*if(!($this->buffer instanceof MemoryStream)) $this->buffer = new MemoryStream;
-            else $this->buffer->seek($this->buffer->length);
-            //*/
-        }
-
-        /*
          * Сброс всех переменных, характеризующих даннное соединение
+         * При полном разрыве соеинения
          */
         private function resetConnectionParams(){
-            $this->resetBufferParams();
+            $this->log('resetConnectionParams');
+            $this->clearConnectionParams();
+
             $this->lastError = false;
 
             $this->timeStart = Time::Now()->getTime();
@@ -858,6 +855,28 @@ namespace bundle\jurl;
             $this->connectionInfo = [];
             $this->requestHeaders = [];
             $this->responseHeaders = [];
+
+            $this->requestLength = 0;
+            $this->responseLength = 0;
+        }
+
+        /**
+         * Сброс некоторых параметров
+         * необходимо при перенаправлении, но при сохранении основного соединения
+         */
+        private function clearConnectionParams(){
+            $this->log('clearConnectionParams');
+            if($this->outStream instanceof Stream){
+                $this->outStream->close(); 
+            }
+            $this->outStream = null;
+
+            if($this->buffer instanceof MemoryStream){
+                $this->buffer->close(); 
+            }
+            $this->buffer = new MemoryStream;
+
+            
         }
 
         /*
@@ -1023,17 +1042,31 @@ namespace bundle\jurl;
          * @return string - строка с куками для header
          */
         private function getCookiesForDomain($cookies, $domain){
-            $cooks = isset($cookies[$domain])?$cookies[$domain]:[];
-            $cookieString = [];
-            $now = Time::Now()->getTime() / 1000;
-            
-            foreach($cooks as $key=>$value){
-                if($value['expires'] >= $now){
-                    $cookieString[] = $key . '=' . $value['value'];
+            $subDomain = explode('.', $domain);
+            unset($subDomain[0]);
+            $subDomain = implode('.', $subDomain);
+ 
+            $cooks = [];
+            foreach(['.', '*', $domain, '.' . $subDomain, '*.' . $subDomain] as $d) {
+                if(isset($cookies[$d])){
+                    $cooks[] = $cookies[$d];
                 }
             }
 
-            if(sizeof($cooks) == 0)return null;
+            $cookieString = [];
+            $now = Time::Now()->getTime() / 1000;
+            
+            foreach($cooks as $c){
+                foreach($c as $key => $value){
+                    if($value['expires'] >= $now){
+                        $cookieString[] = $key . '=' . $value['value'];
+                    }
+                }
+            }
+
+            $this->log(['getCookiesForDomain' => $cookieString]);
+
+            if(sizeof($cooks) == 0 || sizeof($cookieString) == 0) return null;
             
             return implode('; ', $cookieString) . ';';
         }
