@@ -4,7 +4,7 @@ use bundle\jurl\jURLFile;
 
 /**
  * Для поддержки синтаксиса cURL
- * @packages curl
+ * @packages jurl
  */
 class cURLFile extends jURLFile{
 

@@ -13,19 +13,6 @@ use php\lib\Str,
     bundle\jurl\jURLFile,
     bundle\jurl\jURLException;
 
-// Для autoloader'а
-class cURL{
-
-}
-
-/* / Пока define некорректно работает в jphp
-define('CURLINFO_HTTP_CODE', 'responseCode');
-define('CURLINFO_RESPONSE_CODE', 'responseCode');
-define('CURLINFO_TOTAL_TIME', 'executeTime');
-define('CURLINFO_SIZE_UPLOAD', 'requestLength');
-define('CURLINFO_SIZE_DOWNLOAD', 'responseLength');
-define('CURLINFO_CONTENT_TYPE', 'contentType');
-*/
 // Импорт define из стандартного curl
 define("CURLOPT_AUTOREFERER", 58);
 define("CURLOPT_BINARYTRANSFER", 19914);
@@ -512,7 +499,6 @@ if(!function_exists('curl_init')){
    /**
     * --RU--
     * Инициализирует сеанс cURL
-    * @packages curl
     * @param string $url (optional)
     */
     function curl_init($url = NULL){
@@ -522,7 +508,6 @@ if(!function_exists('curl_init')){
    /**
     * --RU--
     * Устанавливает параметр для сеанса CURL
-    * @packages curl
     * @param jURL $ch - Дескриптор cURL, полученный из curl_init
     * @param string $key - Устанавливаемый параметр CURLOPT_*
     * @param string $value - Значение параметра key
@@ -630,7 +615,6 @@ if(!function_exists('curl_init')){
     /**
      * --RU--
      * Устанавливает несколько параметров для сеанса cURL
-     * @packages curl
      * @param jURL $ch - Дескриптор cURL, полученный из curl_init
      * @param array $options - Массив c параметрами вида [CURLOPT_* => 'value']
      */
@@ -643,7 +627,6 @@ if(!function_exists('curl_init')){
     /**
      * --RU--
      * Выполняет запрос cURL
-     * @packages curl
      * @param jURL $ch - Дескриптор cURL, полученный из curl_init
      * @return mixed
      */
@@ -658,7 +641,6 @@ if(!function_exists('curl_init')){
     /**
      * --RU--
      * Выполняет запрос cURL асинхронно
-     * @packages curl
      * @param jURL $ch - Дескриптор cURL, полученный из curl_init
      * @param callable $callback - Функция, куда бкдет передан результат запроса
      */
@@ -676,7 +658,6 @@ if(!function_exists('curl_init')){
     /**
      * --RU--
      * Возвращает строку с описанием последней ошибки текущего сеанса
-     * @packages curl
      * @param jURL $ch - Дескриптор cURL, полученный из curl_init
      * @return string|null
      */
@@ -687,7 +668,6 @@ if(!function_exists('curl_init')){
     /**
      * --RU--
      * Возвращает код последней ошибки
-     * @packages curl
      * @param jURL $ch - Дескриптор cURL, полученный из curl_init
      * @return int - Код ошибки или 0, если запрос выполнен без ошибок
      */
@@ -698,19 +678,60 @@ if(!function_exists('curl_init')){
     /**
      * --RU--
      * Возвращает информацию об определенной операции
-     * @packages curl
      * @param jURL $ch - Дескриптор cURL, полученный из curl_init
      * @return array
+     * @todo Сделать поддержку оригинальных CURLINFO_ ключей
      */
     function curl_getinfo(jURL $ch, $opt = null){
-        $info = $ch->getConnectionInfo();
-	      return (!is_null($opt) and isset($info[$opt])) ? $info[$opt] : $info;
+        $cjKeys = [
+        	CURLINFO_EFFECTIVE_URL => 'url',
+        	CURLINFO_REDIRECT_URL => 'redirectUrls',
+        	CURLINFO_HTTP_CODE => 'responseCode',
+        	CURLINFO_TOTAL_TIME => 'executeTime', // sec => msec
+        	CURLINFO_CONNECT_TIME => 'connectTime', // sec => msec
+        	CURLINFO_REDIRECT_COUNT => 'redirectNum',
+        	// CURLINFO_PRIMARY_IP => 'host',
+        	// CURLINFO_PRIMARY_PORT => 'port',
+        	CURLINFO_CONTENT_LENGTH_DOWNLOAD => 'contentLength',
+        	CURLINFO_SIZE_UPLOAD => 'responseLength',
+        	CURLINFO_SIZE_DOWNLOAD => 'requestLength',
+        	CURLINFO_SPEED_UPLOAD => 'responseLength',
+        	CURLINFO_SPEED_DOWNLOAD => 'requestLength',
+        	CURLINFO_CONTENT_TYPE => 'contentType',
+        	CURLINFO_FILETIME => 'lastModified',
+        ];
+
+        $jinfo = $ch->getConnectionInfo();
+        $info = [];
+
+        foreach ($cjKeys as $key => $value) {
+        	switch ($key) {
+        		case CURLINFO_REDIRECT_URL:
+        			$arr = $jinfo[$value];
+        			$info[$key] = (sizeof($arr) > 0) ? end($arr) : null;
+        			break;        		
+
+        		case CURLINFO_TOTAL_TIME:
+        		case CURLINFO_CONNECT_TIME:
+        			$info[$key] = $jinfo[$value] / 1000;
+        			break;
+
+        		case CURLINFO_SPEED_UPLOAD:
+        		case CURLINFO_SPEED_DOWNLOAD:
+        			$info[$key] = ($jinfo['executeTime'] == 0) ? $jinfo['executeTime'] : ($jinfo[$value] / $jinfo['executeTime']);
+        			break;
+        		
+        		default:
+        			$info[$key] = $jinfo[$value] ?? null;
+        	}
+        }
+	    return $info[$opt] ?? $info;
     }
+
     
     /**
      * --RU--
      * Завершает сеанс cURL
-     * @packages curl
      * @param jURL $ch - Дескриптор cURL, полученный из curl_init
      */
     function curl_close(jURL $ch){
@@ -720,7 +741,6 @@ if(!function_exists('curl_init')){
     /**
      * --RU--
      * Сбросить параметры текущего сеанса
-     * @packages curl
      */
     function curl_reset(jURL $ch){
         return $ch->reset();
@@ -730,7 +750,6 @@ if(!function_exists('curl_init')){
     /**
      * --RU--
      * Создает объект cURLFile
-     * @packages curl
      * @param string $filename Path to the file which will be uploaded.
      * @param string $mimetype = NULL
      * @param string $postname = NULL
@@ -742,53 +761,49 @@ if(!function_exists('curl_init')){
 }
 
 if(!function_exists('http_build_query')){
-  function http_build_query($a,$b='',$c=0){
-    if (!is_array($a)) return $a;
+    function http_build_query($a,$b='',$c=0){
+        if (!is_array($a)) return $a;
 
-    foreach ($a as $k=>$v){
-      if($c){
-        if( is_numeric($k) ){
-          $k=$b."[]";
+        foreach ($a as $k=>$v){
+            if($c){
+                if( is_numeric($k) ){
+                    $k=$b."[]";
+                } else {
+                    $k=$b."[$k]";
+                }
+            } else {   
+                if (is_int($k)){
+                    $k=$b.$k;
+                }
+            }
+            if (is_array($v)||is_object($v)){
+                $r[] = http_build_query($v,$k,1);
+                continue;
+            }
+            $r[] = urlencode($k) . "=" . urlencode($v);
         }
-        else{
-          $k=$b."[$k]";
-        }
-      }
-      else{   
-        if (is_int($k)){
-          $k=$b.$k;
-        }
-      }
-      if (is_array($v)||is_object($v)){
-        $r[] = http_build_query($v,$k,1);
-        continue;
-      }
-      $r[] = urlencode($k) . "=" . urlencode($v);
+        return implode("&",$r);
     }
-    return implode("&",$r);
-  }
 }
 
 if(!function_exists('parse_str')){
-  function parse_str($str) {
-    $arr = array();
-    $pairs = explode('&', $str);
+    function parse_str($str) {
+        $arr = array();
+        $pairs = explode('&', $str);
 
-    foreach ($pairs as $i) {
-      list($name,$value) = explode('=', $i, 2);
+        foreach ($pairs as $i) {
+            list($name,$value) = explode('=', $i, 2);
 
-      if( isset($arr[$name]) ) {
-        if( is_array($arr[$name]) ) {
-          $arr[$name][] = $value;
+                if( isset($arr[$name]) ) {
+                    if( is_array($arr[$name]) ) {
+                        $arr[$name][] = $value;
+                    } else {
+                        $arr[$name] = array($arr[$name], $value);
+                    }
+                } else {
+                    $arr[$name] = $value;
+                }
         }
-        else {
-          $arr[$name] = array($arr[$name], $value);
-        }
-      }
-      else {
-        $arr[$name] = $value;
-      }
+        return $arr;
     }
-    return $arr;
-  }
 }

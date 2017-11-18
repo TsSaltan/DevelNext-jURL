@@ -4,3 +4,4 @@ bundle\jurl\jURLAbortException
 bundle\jurl\jURLDownloader
 bundle\jurl\jURLException
 bundle\jurl\jURLFile
+cURLFile

@@ -27,7 +27,7 @@ namespace bundle\jurl;
      */
     class jURL {
 
-        const VERSION = '2.0.0.1-dev',
+        const VERSION = '2.0.0.2-dev',
               CRLF = "\r\n",
               LOG = false;
 
@@ -45,7 +45,8 @@ namespace bundle\jurl;
                 $outStream,
                 $boundary,
                 $charset,           // Кодировка принимаемых данных
-                $connectionInfo,    // Информация о последнем запросе
+                $connectionInfo = [], // Информация о последнем запросе
+
                 $lastError,         // Информация об ошибках последнего запроса
                 $requestHeaders,    // Отправленные заголовки
                 $responseHeaders,   // Полученные заголовки
@@ -92,6 +93,28 @@ namespace bundle\jurl;
                 'postData'          =>    [],       // Переформатирут данные в формат query, сохранит их в body
                 'postFiles'         =>    [],       // Отправляемые файлы, которые будут отправлены по стандартам "multipart/form-data
             ]); 
+
+            $this->connectionInfo = [  // Информация о последнем запросе
+                'url' => null,
+                'responseCode' => null,
+                'responseMessage' => null,
+                'contentLength' => null,
+                'contentType' => null,
+                'contentEncoding' => null,
+                'expiration' => null,
+                'lastModified' => null,
+                'usingProxy' => null,
+                'executeTime' => 0,
+                'connectTime' => 0,
+                'redirectUrls' => [],
+                'redirectNum' => 0,
+                'requestHeaders' => null,
+                'responseHeaders' => null,
+                'requestLength' => null,
+                'responseLength' => null,
+                'host' => null,
+                'port' => null,
+            ];
         }
 
         /**
@@ -125,7 +148,6 @@ namespace bundle\jurl;
          * @throws bundle\jurl\jURLException
          */
         public function exec($byRedirect = false){
-            $url = new URL($this->opts['url']);
             $cookies = NULL;
             $this->boundary = Str::random(90);
             $answer = false;
@@ -140,6 +162,7 @@ namespace bundle\jurl;
             }
 
             try {    
+                $url = new URL($this->opts['url']);
                 $this->createConnection();
 
                     /*if(!$byRedirect){
@@ -221,6 +244,8 @@ namespace bundle\jurl;
                 $this->log(['Connected to' => $this->opts['url']]);
 
                 // Подключились. Отправляем данные на сервер.
+                $this->setConnectionInfo('connectTime', Time::Now()->getTime() - $this->timeStart);
+                
                 foreach($this->opts as $key => $value){
                     if(!$value || sizeof($value) == 0 || is_null($value)) continue;
 
@@ -324,6 +349,7 @@ namespace bundle\jurl;
                     $redirectUrl = $this->getLocationUrl($this->opts['url'], $this->responseHeaders['Location'][0]);
                     $this->log(['Relocation', $redirectUrl]);
                     $this->setOpt('url', $redirectUrl);
+                    $this->loadConnectionInfo();
                     return $this->Exec(true);
                 }
 
@@ -359,23 +385,7 @@ namespace bundle\jurl;
                     $answer = Str::Decode($answer, $this->charset);
                 }
 
-                $this->connectionInfo = [
-                    'url' => (object) $url,
-                    'responseCode' => $this->getConnectionParam('responseCode'),
-                    'responseMessage' => $this->getConnectionParam('responseMessage'),
-                    'contentLength' => $this->getConnectionParam('contentLength'),
-                    'contentType' => $this->getConnectionParam('contentType'),
-                    'contentEncoding' => $this->charset,
-                    'expiration' => $this->getConnectionParam('expiration'),
-                    'lastModified' => $this->getConnectionParam('lastModified'),
-                    'usingProxy' => $this->getConnectionParam('usingProxy'),
-                    'executeTime' => $this->getExecuteTime(),
-                    //'requestHeaders' => $this->callConnectionFunc('getRequestProperties'),
-                    'requestHeaders' => $this->requestHeaders,
-                    'responseHeaders' => $this->responseHeaders,
-                    'requestLength' => $this->requestLength, // Размер отправленных данных
-                    'responseLength' => $this->responseLength, // Размер полученных данных
-                ];
+                $this->loadConnectionInfo();
 
                 $this->log(['connectionInfo', $this->connectionInfo]);
                 // $this->log(['Output Log', $this->outLog]);
@@ -408,6 +418,47 @@ namespace bundle\jurl;
             return $answer;
         }
 
+        /**
+         * Загрузка раметров соединения
+         */
+        private function loadConnectionInfo(){
+            $this->setConnectionInfo('url', $this->opts['url']);
+            $this->setConnectionInfo('responseCode', $this->getConnectionParam('responseCode'));
+            $this->setConnectionInfo('responseMessage', $this->getConnectionParam('responseMessage'));
+            $this->setConnectionInfo('contentLength', $this->getConnectionParam('contentLength'));
+            $this->setConnectionInfo('contentType', $this->getConnectionParam('contentType'));
+            $this->setConnectionInfo('contentEncoding', $this->charset);
+            $this->setConnectionInfo('expiration', $this->getConnectionParam('expiration'));
+            $this->setConnectionInfo('lastModified', $this->getConnectionParam('lastModified'));
+            $this->setConnectionInfo('usingProxy', $this->getConnectionParam('usingProxy'));
+            $this->setConnectionInfo('executeTime', $this->getExecuteTime());
+            $this->setConnectionInfo('requestHeaders', $this->requestHeaders);
+            $this->setConnectionInfo('responseHeaders', $this->responseHeaders);
+            $this->setConnectionInfo('requestLength', $this->requestLength); 
+            $this->setConnectionInfo('responseLength', $this->responseLength);
+
+            // $this->setConnectionInfo('host', $this->URLConnection->url->getHost());
+            // $this->setConnectionInfo('port', $this->URLConnection->url->getPort());
+            // $this->setConnectionInfo('protocol', $this->URLConnection->url->getProtocol());
+        }
+
+        private function setConnectionInfo($key, $value){
+            switch ($key) {
+                case 'url':
+                    if(isset($this->connectionInfo[$key]) and !is_null($this->connectionInfo[$key])){
+                        $this->connectionInfo['redirectUrls'][] = $this->connectionInfo[$key];
+                        $this->connectionInfo['redirectNum']++;
+                    }
+                    $this->connectionInfo[$key] = $value;
+                    break;
+                
+                case 'executeTime':
+                    $this->connectionInfo[$key] += $value;
+
+                default:
+                    $this->connectionInfo[$key] = $value;
+            }
+        }
 
         public function __destruct(){
             $this->destroyConnection();
