@@ -4,21 +4,24 @@ namespace bundle\jurl;
 use bundle\jurl\jURLException,
     bundle\jurl\jURL,
     php\gui\UXFileChooser,
-    php\time\Time,
     php\gui\UXLabel,
     php\gui\UXProgressBar,
     php\gui\framework\AbstractScript,
     php\gui\framework\behaviour\TextableBehaviour,
-    php\io\FileStream,
-    php\util\Regex,
-    php\lib\str,
-    php\lib\fs,
     php\io\File,
-    script\support\ScriptHelpers,
-    php\lang\ThreadPool;
+    php\io\FileStream,
+    php\lang\ThreadPool,
+    php\lib\fs,
+    php\lib\str,
+    php\time\Time,
+    php\util\Regex,
+    script\support\ScriptHelpers;
 
-class jURLDownloader extends AbstractScript// implements TextableBehaviour
-{   
+/**
+ * @packages jurl
+ */
+class jURLDownloader extends AbstractScript {   
+
     use ScriptHelpers;
     
     /**
@@ -373,7 +376,7 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
     private function checkRange($callback){
 		if($this->checkResult !== null) return $callback($this->checkResult);
 		
-        $this->trigger('start', [$this->url]);
+        $this->trigger('start', ['url' => $this->url]);
 
         $this->handle = new jURL($this->url);
         $this->handle->setRequestMethod('GET');
@@ -412,19 +415,21 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
 		$this->handle->setOpts($this->jurlParams);
 	}
 	
+	/**
+	 * Определение имени загружаемого файла
+	 * @param array $headers Массив заголовков
+	 */
     protected function findDownloadName($headers){
-        if(isset($headers['Content-Disposition'])){
+    	// Изначально имя файла берётся из url
+    	$this->filename = explode('?', basename($this->url))[0];
+
+    	// Если удаётся распарсить заголовки, то имя будет взято оттуда
+        if(isset($headers['Content-Disposition']) and str::contains($headers['Content-Disposition'], 'filename=')){
             $regex = Regex::of('filename="([^"]+)"', Regex::CASE_INSENSITIVE + Regex::MULTILINE)->with($headers['Content-Disposition'][0]);
             if($regex->find()){
                 $this->filename = $regex->group(1);
             }
         }
-        
-        else {
-			$this->filename = explode('?', basename($this->url))[0];
-			//$this->trigger('error', 'downloaded file not found');
-			//$this->close();
-		}
 		
 		if(is_object($this->labelFileName) and method_exists($this->labelFileName, 'settext')){
             $this->labelFileName->text = $this->filename;
@@ -438,7 +443,7 @@ class jURLDownloader extends AbstractScript// implements TextableBehaviour
         $bytes = $this->getBytes();
         $threads = $this->getThreadsCount();
 
-        $this->trigger('progress', [$progress, $speed, $bytes, $this->contentLength]);
+        $this->trigger('progress', ['progress' =>$progress, 'speed' => $speed, 'bytes' => $bytes, 'length' => $this->contentLength]);
         if(is_object($this->progressBar) and method_exists($this->progressBar, 'setprogress')){
             $this->progressBar->progress = $progress;
         }

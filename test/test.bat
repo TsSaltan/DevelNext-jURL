@@ -28,45 +28,53 @@ var_dump(curl_error($curl));
 //*/
 use php\util\Regex;
 
+  $Vk = curl_init('http://m.vk.com/');
+        curl_setopt_array($Vk, [
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 6.3; rv:38.0) Gecko/20100101 Firefox/38.0',
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_COOKIEFILE => 'vk.cookie']
+        );
+ $res = curl_exec($Vk);
+ var_dump( strlen($res) );
+
+          curl_setopt($Vk, CURLOPT_URL, 'http://localhost/curl/auth.php');
+        curl_setopt($Vk, CURLOPT_CUSTOMREQUEST, 'POST');
+        curl_setopt($Vk, CURLOPT_POST, true);
+        curl_setopt($Vk, CURLOPT_POSTFIELDS, ['email'=> '+****', 'pass' => '****']);
+        $a = curl_exec($Vk);
+        var_dump( $a );
+
+       
+
+/*
 // первый запрос
-
-$Vk = curl_init('http://m.vk.com/');//*
-curl_setopt_array($Vk, [
-    CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 6.3; rv:38.0) Gecko/20100101 Firefox/38.0',
-    CURLOPT_FOLLOWLOCATION => true,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_SSL_VERIFYPEER => false,
-    CURLOPT_COOKIEFILE => 'vk.cookie']
-);
-$res = curl_exec($Vk);
-var_dump('--------- Query 1 --------- ');
-var_dump($res);
-//var_dump('---------');
-//var_dump( curl_getinfo($Vk) );
-
-// парсим ссылку
-$rg = new Regex('<form method="post" action="([\w\W]+)" novalidate>', 'U',$res); 
-$Url = $rg->first();
-if(empty($Url[1])) {
-    curl_close($Vk);
-    return false;
-}
-
-var_dump('---------');
-var_dump( $Url );
-
-var_dump('--------- Query 2 --------- ');
-// второй запрос */
-$auth = http_build_query(['email'=> '380633774673', 'pass' => 'авава']);
-curl_setopt($Vk, CURLOPT_URL, $Url[1] );
-//curl_setopt($Vk, CURLOPT_URL, 'http://localhost/curl/2headers.php');
-curl_setopt($Vk, CURLOPT_CUSTOMREQUEST, 'POST');
-//curl_setopt($Vk, CURLOPT_HTTPHEADER, ['Host: login.vk.com', 'Content-Length: 10' . strlen($auth), 'Meow: Gau']);
-
-curl_setopt($Vk, CURLOPT_POST, true);
-curl_setopt($Vk, CURLOPT_POSTFIELDS, $auth);
-$c = curl_exec($Vk);
-//$x = curl_getinfo($Vk);
-//var_dump($x);
-var_dump('--------');
-var_dump($c);
+// первый запрос
+        $Vk = curl_init('http://m.vk.com/');
+        curl_setopt_array($Vk, [
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 6.3; rv:38.0) Gecko/20100101 Firefox/38.0',
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_COOKIEFILE => 'vk.cookie']
+        );
+        $res = curl_exec($Vk);
+        // парсим ссылку
+        $rg = new Regex('<form method="post" action="([\w\W]+)" novalidate>', 'U',$res); 
+        $Url = $rg->first();
+        if(empty($Url[1])) {
+            curl_close($Vk);
+            return false;
+        }
+        
+        // второй запрос
+        curl_setopt($Vk, CURLOPT_URL, $Url[1] );
+        curl_setopt($Vk, CURLOPT_CUSTOMREQUEST, 'POST');
+        curl_setopt($Vk, CURLOPT_POST, true);
+        curl_setopt($Vk, CURLOPT_POSTFIELDS, ['email'=> '+375259053770', 'pass' => '2543724']);
+        $a = curl_exec($Vk);
+ 
+        $x = curl_getinfo($Vk);
+        var_dump($a);
+        var_dump($x);//*/

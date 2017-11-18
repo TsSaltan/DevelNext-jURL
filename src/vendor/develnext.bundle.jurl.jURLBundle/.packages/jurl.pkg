@@ -1,0 +1,6 @@
+[classes]
+bundle\jurl\jURL
+bundle\jurl\jURLAbortException
+bundle\jurl\jURLDownloader
+bundle\jurl\jURLException
+bundle\jurl\jURLFile

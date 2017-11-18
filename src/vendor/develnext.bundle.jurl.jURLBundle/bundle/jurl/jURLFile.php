@@ -5,7 +5,10 @@ use bundle\jurl\jURLException,
     php\io\FileStream,
     php\lib\Str,
     php\net\URLConnection;
-
+    
+/**
+ * @packages jurl
+ */
 class jURLFile{
     public $filename,
             $mimetype,

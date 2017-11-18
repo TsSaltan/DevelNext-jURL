@@ -22,10 +22,12 @@ namespace bundle\jurl;
         php\util\Locale,
         php\util\Regex;
 
-    class jURL
-    {
-        const 
-              VERSION = '1.2.0.1',
+    /**
+     * @packages jurl
+     */
+    class jURL {
+
+        const VERSION = '2.0.0.1-dev',
               CRLF = "\r\n",
               LOG = false;
 
@@ -376,7 +378,7 @@ namespace bundle\jurl;
                 ];
 
                 $this->log(['connectionInfo', $this->connectionInfo]);
-                $this->log(['Output Log', $this->outLog]);
+                // $this->log(['Output Log', $this->outLog]);
                 $this->log(['Answer Length', str::length($answer)]);
                 
                 if($errorStream = $this->callConnectionFunc('getErrorStream')->readFully() and str::length($errorStream) > 0){
