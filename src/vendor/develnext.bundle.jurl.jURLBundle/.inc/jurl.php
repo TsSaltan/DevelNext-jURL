@@ -683,6 +683,10 @@ if(!function_exists('curl_init')){
      * @todo Сделать поддержку оригинальных CURLINFO_ ключей
      */
     function curl_getinfo(jURL $ch, $opt = null){
+    	/**
+    	 * Ключи CURLINFO соответствующие ключам jURL
+    	 * @todo
+    	 */
         $cjKeys = [
         	CURLINFO_EFFECTIVE_URL => 'url',
         	CURLINFO_REDIRECT_URL => 'redirectUrls',
@@ -693,39 +697,102 @@ if(!function_exists('curl_init')){
         	// CURLINFO_PRIMARY_IP => 'host',
         	// CURLINFO_PRIMARY_PORT => 'port',
         	CURLINFO_CONTENT_LENGTH_DOWNLOAD => 'contentLength',
-        	CURLINFO_SIZE_UPLOAD => 'responseLength',
-        	CURLINFO_SIZE_DOWNLOAD => 'requestLength',
-        	CURLINFO_SPEED_UPLOAD => 'responseLength',
-        	CURLINFO_SPEED_DOWNLOAD => 'requestLength',
+        	CURLINFO_SIZE_DOWNLOAD => 'responseLength',
+        	CURLINFO_SIZE_UPLOAD => 'requestLength',
+        	CURLINFO_SPEED_DOWNLOAD => 'responseLength',
+        	CURLINFO_SPEED_UPLOAD => 'requestLength',
         	CURLINFO_CONTENT_TYPE => 'contentType',
         	CURLINFO_FILETIME => 'lastModified',
+
+        	CURLINFO_HEADER_OUT => 'requestHeaders',	// отправленные зеголовки
+        	CURLINFO_HEADER_SIZE  => 'requestHeaderLength',	// размер полученных заголовков
+        	// CURLINFO_REQUEST_SIZE  => 'requestHeaders', // размер отправленных заголовков
+        ];
+
+        /**
+         * Ключи, которые будут возвращены при не указанном параметре $opt == null
+         * @todo Добавить ключи
+         * ""
+		 * ""
+		 * "ssl_verify_result"
+		 * "namelookup_time"
+		 * "pretransfer_time"
+		 * "upload_content_length"
+		 * "starttransfer_time"
+		 * "redirect_time"
+		 * "certinfo"
+		 * "primary_ip"
+		 * "primary_port"
+		 * "local_ip"
+		 * "local_port"
+		 * ""
+         */
+        $textKeys = [
+        	CURLINFO_EFFECTIVE_URL => 'url',
+        	CURLINFO_CONTENT_TYPE => 'content_type',
+        	CURLINFO_HTTP_CODE => 'http_code',
+        	// CURLINFO_SIZE_DOWNLOAD => '',
+        	CURLINFO_SIZE_DOWNLOAD => 'size_download',
+        	CURLINFO_FILETIME => 'filetime',
+        	CURLINFO_REDIRECT_COUNT => 'redirect_count',
+        	CURLINFO_TOTAL_TIME => 'total_time', // sec => msec
+        	CURLINFO_CONNECT_TIME => 'connect_time', // sec => msec
+        	CURLINFO_SIZE_UPLOAD => 'size_upload',
+        	CURLINFO_SPEED_UPLOAD => 'speed_upload',
+        	CURLINFO_SPEED_DOWNLOAD => 'speed_download',
+        	CURLINFO_CONTENT_LENGTH_DOWNLOAD => 'download_content_length',
+        	CURLINFO_REDIRECT_URL => 'redirect_url',
+
+        	CURLINFO_HEADER_OUT => 'request_header',
+        	 CURLINFO_HEADER_SIZE => 'header_size',
+        	// CURLINFO_REQUEST_SIZE => 'request_size',
         ];
 
         $jinfo = $ch->getConnectionInfo();
         $info = [];
 
-        foreach ($cjKeys as $key => $value) {
-        	switch ($key) {
+        foreach ($cjKeys as $key => $value){
+        	if(!is_null($opt) and $opt != $key) continue;
+        	$item = null;
+        	switch ($key){
         		case CURLINFO_REDIRECT_URL:
         			$arr = $jinfo[$value];
-        			$info[$key] = (sizeof($arr) > 0) ? end($arr) : null;
+        			$item = (sizeof($arr) > 0) ? end($arr) : null;
         			break;        		
 
-        		case CURLINFO_TOTAL_TIME:
+        		case CURLINFO_HEADER_OUT:
+        			foreach($jinfo[$value] as $k => $v){
+        				$pre = (strlen($k) > 0) ? $k . ': ' : $k ;
+        				foreach ($v as $vv) {
+        					$item .= $pre . $vv . "\r\n";
+        				}
+        			}
+        			$item .= "\r\n";
+        			break;
+
+           		case CURLINFO_TOTAL_TIME:
         		case CURLINFO_CONNECT_TIME:
-        			$info[$key] = $jinfo[$value] / 1000;
+        			$item = $jinfo[$value] / 1000;
+        			break;
+
+        		case CURLINFO_REDIRECT_COUNT:
+        			$item = $jinfo[$value] ?? 0;
         			break;
 
         		case CURLINFO_SPEED_UPLOAD:
         		case CURLINFO_SPEED_DOWNLOAD:
-        			$info[$key] = ($jinfo['executeTime'] == 0) ? $jinfo['executeTime'] : ($jinfo[$value] / $jinfo['executeTime']);
+        			$item = ($jinfo['executeTime'] == 0) ? $jinfo['executeTime'] : ($jinfo[$value] / $jinfo['executeTime']);
         			break;
         		
         		default:
-        			$info[$key] = $jinfo[$value] ?? null;
+        			$item = $jinfo[$value] ?? null;
         	}
+
+        	if(is_null($opt)) $info[$textKeys[$key]] = $item;
+        	else return $item;
         }
-	    return $info[$opt] ?? $info;
+
+	    return $info;
     }
 
     

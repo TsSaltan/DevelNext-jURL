@@ -27,7 +27,7 @@ namespace bundle\jurl;
      */
     class jURL {
 
-        const VERSION = '2.0.0.2-dev',
+        const VERSION = '2.0.0.7-dev',
               CRLF = "\r\n",
               LOG = false;
 
@@ -50,7 +50,8 @@ namespace bundle\jurl;
                 $lastError,         // Информация об ошибках последнего запроса
                 $requestHeaders,    // Отправленные заголовки
                 $responseHeaders,   // Полученные заголовки
-                $timeStart;         // Время начала запроса (для таймера)
+                $timeStart,         // Время начала запроса (для таймера)
+                $requestHeaderLength = 0;         // Размер полученных заголовков
 
         
         public function __construct($url = null){
@@ -112,6 +113,7 @@ namespace bundle\jurl;
                 'responseHeaders' => null,
                 'requestLength' => null,
                 'responseLength' => null,
+                'requestHeaderLength' => 0,
                 'host' => null,
                 'port' => null,
             ];
@@ -324,15 +326,20 @@ namespace bundle\jurl;
                 }
     
                 // Добавление заголовков в вывод
-                if(isset($this->opts['returnHeaders']) and $this->opts['returnHeaders'] === true){
-                    // Если в foreach засунуть $headers, после цикла все данные куда-то исчезнут >:(
-                    foreach($this->responseHeaders as $hk=>$hv){
-                        foreach($hv as $kk => $s){
-                            $headString = $hk. ((strlen($hk) > 0) ? ': ' : '') . $s;
-                            $this->writeBufferStream($headString . self::CRLF);
+                $returnHeader = ($this->opts['returnHeaders'] ?? false) === true;
+                // Если в foreach засунуть $headers, после цикла все данные куда-то исчезнут >:(
+                foreach($this->responseHeaders as $hk=>$hv){
+                    foreach($hv as $kk => $s){
+                        $headString = $hk. ((strlen($hk) > 0) ? ': ' : '') . $s . self::CRLF;
+                        $this->requestHeaderLength += str::length($headString);
+                        if($returnHeader){
+                          $this->writeBufferStream($headString);
                         }
                     }
-
+                }
+                
+                $this->requestHeaderLength += str::length(self::CRLF);
+                if($returnHeader){
                     $this->writeBufferStream(self::CRLF);
                 }
 
@@ -436,6 +443,7 @@ namespace bundle\jurl;
             $this->setConnectionInfo('responseHeaders', $this->responseHeaders);
             $this->setConnectionInfo('requestLength', $this->requestLength); 
             $this->setConnectionInfo('responseLength', $this->responseLength);
+            $this->setConnectionInfo('requestHeaderLength', $this->requestHeaderLength);
 
             // $this->setConnectionInfo('host', $this->URLConnection->url->getHost());
             // $this->setConnectionInfo('port', $this->URLConnection->url->getPort());
@@ -905,12 +913,18 @@ namespace bundle\jurl;
 
             $this->timeStart = Time::Now()->getTime();
             $this->charset = NULL;
-            $this->connectionInfo = [];
-            $this->requestHeaders = [];
+
+            $this->connectionInfo = 
+            $this->requestHeaders = 
             $this->responseHeaders = [];
 
-            $this->requestLength = 0;
-            $this->responseLength = 0;
+            $this->requestLength = 
+            $this->responseLength =
+            $this->requestHeaderLength = 0;
+
+            if($this->buffer instanceof MemoryStream){
+                $this->buffer->close(); 
+            }
         }
 
         /**
@@ -924,12 +938,13 @@ namespace bundle\jurl;
             }
             $this->outStream = null;
 
+            /* Нужно ли очищать буфер? ведь по сути запрос не завершён
             if($this->buffer instanceof MemoryStream){
                 $this->buffer->close(); 
             }
-            $this->buffer = new MemoryStream;
+            */
 
-            
+            if(!$this->buffer instanceof MemoryStream) $this->buffer = new MemoryStream;
         }
 
         /*
@@ -1254,5 +1269,37 @@ namespace bundle\jurl;
 
             
             return true;
+        }
+
+        /**
+         * Установить прокси для всех сетевых соединений
+         * @param string $host 
+         * @param int    $port
+         * @param string $type = HTTP | HTTPS | SOCKS
+         * @param string $user = ""
+         * @param string $pass = ""
+         */
+        public static function setGlobalProxy(string $host, int $port, string $type, string $user = '', string $pass = ''){
+            switch($type){           
+                case 'HTTPS':
+                    System::setProperty('https.proxyHost', $host);
+                    System::setProperty('https.proxyPort', $port);
+                    System::setProperty('https.proxyUser', $user);
+                    System::setProperty('https.proxyPassword', $pass); 
+                    // Если поддерживается https, то заработает и с http, поэтому не ставлю break
+                case 'HTTP':
+                    System::setProperty('http.proxyHost', $host);
+                    System::setProperty('http.proxyPort', $port);
+                    System::setProperty('http.proxyUser', $user);
+                    System::setProperty('http.proxyPassword', $pass); 
+                break;    
+                             
+                case 'SOCKS':
+                    System::setProperty('socksProxyHost', $host);
+                    System::setProperty('socksProxyPort', $port);
+                    System::setProperty('java.net.socks.username', $user);
+                    System::setProperty('java.net.socks.password', $pass);
+                break;
+            }
         }
     }

@@ -424,10 +424,17 @@ class jURLDownloader extends AbstractScript {
     	$this->filename = explode('?', basename($this->url))[0];
 
     	// Если удаётся распарсить заголовки, то имя будет взято оттуда
-        if(isset($headers['Content-Disposition']) and str::contains($headers['Content-Disposition'], 'filename=')){
-            $regex = Regex::of('filename="([^"]+)"', Regex::CASE_INSENSITIVE + Regex::MULTILINE)->with($headers['Content-Disposition'][0]);
+        if(isset($headers['Content-Disposition'])){
+            // case 1 : Content-Disposition: Attachment; filename=example.html
+            // case 2 : Content-Disposition: attachment; filename*= UTF-8''%e2%82%ac%20rates
+            // case 3 : Content-Disposition: attachment; filename="%e2%82%ac%20rates"
+            
+            $regex = Regex::of('filename\*?=["\s]?([^"\r\n]+)["\s\r\n]?', Regex::CASE_INSENSITIVE | Regex::UNICODE_CASE)->with($headers['Content-Disposition'][0]);
             if($regex->find()){
                 $this->filename = $regex->group(1);
+                if(str::startsWith($this->filename, "UTF-8''")){
+                    $this->filename = str::sub($this->filename, 7);
+                }
             }
         }
 		
