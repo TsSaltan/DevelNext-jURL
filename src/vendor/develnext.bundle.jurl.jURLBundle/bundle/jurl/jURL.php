@@ -4,10 +4,14 @@ namespace bundle\jurl;
     use bundle\jurl\jURLAbortException,
         bundle\jurl\jURLException,
         bundle\jurl\jURLFile,
+        EngineException,
+        Exception,
+        php\format\ProcessorException,
         php\framework\Logger,
         php\gui\UXApplication,
         php\io\File,
         php\io\FileStream,
+        php\io\IOException,
         php\io\MemoryStream,
         php\io\Stream,
         php\lang\System,
@@ -15,6 +19,7 @@ namespace bundle\jurl;
         php\lib\fs,
         php\lib\Str,
         php\net\Proxy,
+        php\net\SocketException,
         php\net\URL,
         php\net\URLConnection,
         php\time\Time,
@@ -27,9 +32,10 @@ namespace bundle\jurl;
      */
     class jURL {
 
-        const VERSION = '2.0.0.7-dev',
-              CRLF = "\r\n",
-              LOG = false;
+        const VERSION = '2.0.0.8-dev',
+              CRLF = "\r\n";
+              
+        private static $debug = false;
 
         private $opts = [],         // Параметры подключения
                 $URLConnection,     // Соединеие
@@ -151,7 +157,7 @@ namespace bundle\jurl;
          */
         public function exec($byRedirect = false){
             $cookies = NULL;
-            $this->boundary = Str::random(90);
+            $this->boundary = '----' . Str::random(34);
             $answer = false;
 
             // Если был редирект, сбрасываем только некоторые параметры
@@ -167,7 +173,10 @@ namespace bundle\jurl;
                 $url = new URL($this->opts['url']);
                 $this->createConnection();
 
-                    /*if(!$byRedirect){
+                    /**
+                     * @todo Авторизация прокси
+                     * 
+                    if(!$byRedirect){
                         $this->sendOutStream(
                             'CONNECT '. $this->callConnectionFunc('getRequestProperties')['Host'][0] .':443 HTTP/1.0' . self::CRLF .
                             'User-agent: ' . $this->opts['userAgent'] . self::CRLF .
@@ -285,7 +294,6 @@ namespace bundle\jurl;
 
                         case 'postFiles':
                             $this->log('sendBody -> '.$key);
-                            // $this->sendOutputData((is_array($value))?$value:[$value]); // А как он может быть не array?
                             $this->sendOutputData($value);
                         break;
                     }
@@ -401,20 +409,8 @@ namespace bundle\jurl;
                 if($errorStream = $this->callConnectionFunc('getErrorStream')->readFully() and str::length($errorStream) > 0){
                     $this->throwError('errorStream: ' . $errorStream, 1);
                 }
-
-
-            }/**/ catch (\php\net\SocketException $e){
-                $this->throwError('SocketException: ' . $e->getMessage(), 2);
-            } catch (\php\format\ProcessorException $e){
-                $this->throwError('ProcessorException: ' . $e->getMessage(), 3);
-            } catch (\php\io\IOException $e){
-                $this->throwError('IOException: ' . $e->getMessage(), 4);
-            } catch (\EngineException $e){
-                $this->throwError('EngineException: ' . $e->getMessage(), 5);
-            } catch (\Exception $e){
-                $this->throwError('Exception: ' . $e->getMessage(), 6);
-            } catch (jURLException $e){
-                $this->throwError($e->getMessage(), $e->getCode);
+            } catch (SocketException | ProcessorException | IOException | EngineException | Exception | jURLException $e){
+                $this->throwError(get_class($e) . ': ' . $e->getMessage() . " at [" . $e->getFile() . ":" . $e->getLine(). "]\n" . $e->getTraceAsString(), $e->getCode());
             }//*/ 
             catch (jURLAbortException $e){
                 $this->close();
@@ -841,7 +837,7 @@ namespace bundle\jurl;
 
         private function sendOutStream($out){
             if(!($this->outStream instanceof Stream)) $this->outStream = $this->callConnectionFunc('getOutputStream');
-            if(self::LOG) $this->outLog .= $out . self::CRLF;
+            if(self::$debug) $this->outLog .= $out . self::CRLF;
             $this->outStream->write($out);
         }
 
@@ -950,8 +946,13 @@ namespace bundle\jurl;
         /*
          * Читает данные из входящего потока в буфер
          */
-        private function loadToBuffer($input){
-            $data = $input->read($this->opts['bufferSize']);
+        private function loadToBuffer(Stream $input){
+            try{
+                $data = $input->read($this->opts['bufferSize']);
+            } catch (IOException $e) {
+                return false;
+            }
+
             $this->responseLength += Str::Length($data);
 
             $this->writeBufferStream($data);
@@ -963,12 +964,22 @@ namespace bundle\jurl;
          * Читает входной поток данных
          */
         private function getInputData(){
+            // мб переделать под try-catch?
+            //$input = $this->callConnectionFunc('getInputStream');
+            //$error = $this->callConnectionFunc('getErrorStream');
+
+
             $in = $this->isError() ? $this->callConnectionFunc('getErrorStream') : $this->callConnectionFunc('getInputStream');
             $this->loadToBuffer($in);
 
             while(!$in->eof()){
                 $this->loadToBuffer($in);
-            }   
+            }  
+
+           /* while(!$error->eof()){
+                $this->loadToBuffer($error);
+            }//*/  
+
             $this->callProgressFunction($this->getConnectionParam('contentLength'), $this->getConnectionParam('contentLength'), $this->responseLength, $this->responseLength);
         }
 
@@ -992,9 +1003,9 @@ namespace bundle\jurl;
             $this->sendOutStream(self::CRLF);
             $this->sendOutStream("Content-Disposition: form-data; name=\"$key\"" . ($isFile ? "; filename=\"".$data->getPostFilename()."\"": NULL));
             $this->sendOutStream(self::CRLF);
-            $this->sendOutStream("Content-Type: $contentType");
+            $this->sendOutStream("Content-Type: " . $contentType);
             $this->sendOutStream(self::CRLF);
-                                    
+
             if($isFile){
                 $source = $data->getStream();
                 $this->sendOutStream("Content-Transfer-Encoding: binary");
@@ -1242,9 +1253,12 @@ namespace bundle\jurl;
         }
 
         private function Log($data){
-            if(self::LOG) Logger::Info('[jURL] ' . var_export($data, true));
+            if(self::$debug) Logger::Info('[jURL] ' . var_export($data, true));
         }
 
+        /**
+         * @deprecated
+         */
         public static function requreVersion($version){
             $c = explode('.', self::VERSION);
             $r = explode('.', $version);
@@ -1301,5 +1315,9 @@ namespace bundle\jurl;
                     System::setProperty('java.net.socks.password', $pass);
                 break;
             }
+        }
+
+        public static function setDebugMode(bool $mode){
+            self::$debug = $mode;
         }
     }

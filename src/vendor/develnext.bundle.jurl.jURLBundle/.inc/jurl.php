@@ -761,6 +761,7 @@ if(!function_exists('curl_init')){
         			break;        		
 
         		case CURLINFO_HEADER_OUT:
+        			if(!is_array($jinfo[$value])) break;
         			foreach($jinfo[$value] as $k => $v){
         				$pre = (strlen($k) > 0) ? $k . ': ' : $k ;
         				foreach ($v as $vv) {
