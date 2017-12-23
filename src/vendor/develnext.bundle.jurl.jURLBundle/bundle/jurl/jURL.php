@@ -32,7 +32,7 @@ namespace bundle\jurl;
      */
     class jURL {
 
-        const VERSION = '2.0.0.8-dev',
+        const VERSION = '2.0.0.9-dev',
               CRLF = "\r\n";
               
         private static $debug = false;

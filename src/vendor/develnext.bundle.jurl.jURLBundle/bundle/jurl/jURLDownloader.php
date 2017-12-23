@@ -40,7 +40,12 @@ class jURLDownloader extends AbstractScript {
      * Путь, куда будет сохранен файл
      * @var string
      */
-    public $savePath = './dwn/';    
+    public $savePath = './dwn/'; 
+
+    /**
+     * Имя сохраняемого файла (если false - будет определено автоматически)
+     */
+    public $filename = false;    
 
     /**
      * Выбирать путь для сохранения вручную
@@ -135,7 +140,6 @@ class jURLDownloader extends AbstractScript {
     private $isStarted = false,
             $contentLength = 0, 
             $startTime,
-            $filename = null, 
             $threadPool, 
             $handlePool = [], 
             $progressPool = [], 
@@ -366,6 +370,10 @@ class jURLDownloader extends AbstractScript {
     public function stop(){
         $this->trigger('abort');
         $this->close();
+    }    
+
+    public function setFilename(string $filename){
+        $this->filename = $filename;
     }
      
 	private $checkResult = null;
@@ -420,6 +428,8 @@ class jURLDownloader extends AbstractScript {
 	 * @param array $headers Массив заголовков
 	 */
     protected function findDownloadName($headers){
+    	if($this->filename !== false and strlen($this->filename) > 0) return $this->filename;
+
     	// Изначально имя файла берётся из url
     	$this->filename = explode('?', basename($this->url))[0];
 
