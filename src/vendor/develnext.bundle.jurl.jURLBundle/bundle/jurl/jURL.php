@@ -1318,6 +1318,20 @@ namespace bundle\jurl;
             }
         }
 
+        /**
+         * Импорт DER сертификата в список доверенных
+         * @param string $certDer Путь к сертификату
+         * @param string $url 
+         * @param string $storePass Пароль от хранилища сертификатов java
+         * @todo curl-syntax support
+         */
+        public static function importCert(string $certDer, string $url = null, $storePass = "changeit"){
+            $alias = 'jurl-' . ((new URL($url))->getHost()) . '-' . fs::hash($certDer, 'MD5');
+            $certDer = realpath($certDer);
+            $javaHome = System::getProperty('java.home');
+            return `{$javaHome}/bin/keytool -importcert -alias {$alias} -keystore \"{$javaHome}/lib/security/cacerts\" -storepass {$storePass} -file \"{$certDer}\" -noprompt`;    
+        }
+        
         public static function setDebugMode(bool $mode){
             self::$debug = $mode;
         }
