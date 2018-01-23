@@ -8,6 +8,7 @@ use bundle\jurl\jURLException,
     php\gui\UXProgressBar,
     php\gui\framework\AbstractScript,
     php\gui\framework\behaviour\TextableBehaviour,
+    php\io\IOException,
     php\io\File,
     php\io\FileStream,
     php\lang\ThreadPool,
@@ -544,6 +545,7 @@ class jURLDownloader extends AbstractScript {
             $saveFile = $this->tmpPath . 'range-' . $from . '-' . $to . '.tmp';
             
             fs::makeFile($saveFile);
+
             $this->progressPool[$i] = [
                 'from' => $from,
                 'to' => $to,
@@ -552,38 +554,38 @@ class jURLDownloader extends AbstractScript {
                 'bytes' => 0
             ];
 
-            $this->handlePool[$i] = clone $this->handle;
-            $this->handlePool[$i]->addHttpHeader('Range', 'bytes=' . $from . '-' . $to);
-            $this->handlePool[$i]->setRequestMethod('GET');
-            $this->handlePool[$i]->setOutputFile($saveFile);
-            $this->handlePool[$i]->setCookieFile($this->cookieFile);
-            $this->handlePool[$i]->setReturnHeaders(false);
-            $this->handlePool[$i]->setReturnBody(true);
-            $this->handlePool[$i]->setFollowRedirects(true);
-            $this->handlePool[$i]->setAutoReferer(true);       
-            $this->handlePool[$i]->setProgressFunction(function($ch, $dwnTotal, $dwn, $uplTotal, $upl) use ($i){
-                $this->onProgresss($i, $dwn);
-            });        
-		
-		
-            $this->threadPool->submit(function() use ($i, $from, $to){
-                $this->handlePool[$i]->asyncExec(function($result) use ($i, $from, $to){
-					/*var_dump([
-						'i' => $i,
-						'from' => $from, 
-						'to' => $to,
-						'heads' => curl_getinfo($this->handlePool[$i])
-					]);*/
-                    $errors = $this->handlePool[$i]->getError();
-                    $this->handlePool[$i]->close();
-                    if($result === false){
-                        if($this->isStarted) $this->trigger('error', $errors);
-                        return $this->close();
-                    }
-                        
-                    $this->onComplete($i);
-                });
-            });
+            try{
+	            $this->handlePool[$i] = clone $this->handle;
+	            $this->handlePool[$i]->addHttpHeader('Range', 'bytes=' . $from . '-' . $to);
+	            $this->handlePool[$i]->setRequestMethod('GET');
+	            $this->handlePool[$i]->setOutputFile($saveFile);
+	            $this->handlePool[$i]->setCookieFile($this->cookieFile);
+	            $this->handlePool[$i]->setReturnHeaders(false);
+	            $this->handlePool[$i]->setReturnBody(true);
+	            $this->handlePool[$i]->setFollowRedirects(true);
+	            $this->handlePool[$i]->setAutoReferer(true);       
+	            $this->handlePool[$i]->setProgressFunction(function($ch, $dwnTotal, $dwn, $uplTotal, $upl) use ($i){
+	                $this->onProgresss($i, $dwn);
+	            });        
+			
+			
+	            $this->threadPool->submit(function() use ($i, $from, $to){
+	                $this->handlePool[$i]->asyncExec(function($result) use ($i, $from, $to){
+
+	                    $errors = $this->handlePool[$i]->getError();
+	                    $this->handlePool[$i]->close();
+	                    if($result === false){
+	                        if($this->isStarted) $this->trigger('error', $errors);
+	                        return $this->close();
+	                    }
+	                        
+	                    $this->onComplete($i);
+	                });
+	            });
+        	} catch (jURLException | IOException $e){
+        		$this->trigger('error', $errors);
+        		$this->close();
+        	}
 
         }
     }

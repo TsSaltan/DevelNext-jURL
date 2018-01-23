@@ -32,7 +32,7 @@ namespace bundle\jurl;
      */
     class jURL {
 
-        const VERSION = '2.0.0.9-dev',
+        const VERSION = '2.0.0.10-dev',
               CRLF = "\r\n";
               
         private static $debug = false;
@@ -712,6 +712,7 @@ namespace bundle\jurl;
          * --RU--
          * Установка файла, куда будет сохранён ответ с сервера (например, при скачивании файла)
          * @param string $file - path/to/file
+         * @throws IOException
          */
         public function setOutputFile($file){
             $this->opts['outputFile'] = ($file === false || $file === null) ? $file : FileStream::of($file, 'w+');
