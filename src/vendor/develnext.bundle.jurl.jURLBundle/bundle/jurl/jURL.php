@@ -57,7 +57,8 @@ namespace bundle\jurl;
                 $requestHeaders,    // Отправленные заголовки
                 $responseHeaders,   // Полученные заголовки
                 $timeStart,         // Время начала запроса (для таймера)
-                $requestHeaderLength = 0;         // Размер полученных заголовков
+                $requestHeaderLength = 0,         // Размер полученных заголовков
+                $contentHeaderSend = false; // Был ли отправлен серверу заголовок content-type
 
         
         public function __construct($url = null){
@@ -216,7 +217,11 @@ namespace bundle\jurl;
                         case 'httpHeader':
                             $this->log(['Send user\'s httpHeader' => $value]);
                             foreach($value as $h){
-                                $this->callConnectionFunc('setRequestProperty', [$h[0], $h[1]]);
+                                if(strtolower($h[0]) == 'content-type'){
+                                    // у пользовательских заголовков повышенный приоритет
+                                    $this->setContentTypeHeader($h[1], true);
+                                }
+                                else $this->callConnectionFunc('setRequestProperty', [$h[0], $h[1]]);
                             }
                         break;
 
@@ -238,7 +243,8 @@ namespace bundle\jurl;
 
                         case 'postData':
                             if($this->isMultipart()) break;
-                            $this->callConnectionFunc('setRequestProperty', [ 'Content-Type', 'application/x-www-form-urlencoded' ]);
+                            //$this->callConnectionFunc('setRequestProperty', [ 'Content-Type', 'application/x-www-form-urlencoded' ]);
+                            $this->setContentTypeHeader('application/x-www-form-urlencoded');
                         break; 
                         
                         case 'httpReferer':
@@ -246,7 +252,8 @@ namespace bundle\jurl;
                         break;
 
                         case 'postFiles':                        
-                            $this->callConnectionFunc('setRequestProperty', [ 'Content-Type', 'multipart/form-data; boundary=' . $this->boundary ]);
+                            //$this->callConnectionFunc('setRequestProperty', [ 'Content-Type', 'multipart/form-data; boundary=' . $this->boundary ]);
+                            $this->setContentTypeHeader('multipart/form-data; boundary=' . $this->boundary, true);
                         break;
 
                     }
@@ -273,13 +280,13 @@ namespace bundle\jurl;
 								$value = http_build_query($value);
 							}
                         case 'body':
-                            $this->log('sendBody -> ' . $key . ":" . $value);
+                            $this->log('sendBody/body -> ' . $key . ":" . $value);
                             $this->sendOutStream($value);
                             $this->requestLength += Str::Length($value);
                         break; 
                         
                         case 'inputFile':
-                            $this->log('sendBody -> '.$key);                        
+                            $this->log('sendBody/inputFile -> '.$key);                        
                             $fileStream = ($this->opts['inputFile'] instanceof FileStream)?$this->opts['inputFile']:FileStream::of($this->opts['inputFile'], 'r+');
                             
                             $this->log('Sending bodyFile, size = ' . $fileStream->length());
@@ -293,7 +300,7 @@ namespace bundle\jurl;
                         break;
 
                         case 'postFiles':
-                            $this->log('sendBody -> '.$key);
+                            $this->log('sendBody/postFiles -> '.$key);
                             $this->sendOutputData($value);
                         break;
                     }
@@ -421,6 +428,22 @@ namespace bundle\jurl;
             return $answer;
         }
 
+        /**
+         * Функция для отправки на сервер заголовка Content-Type
+         * т.к. при различных обстоятельствах может быть отправлено несколько заголовков,
+         * учитывается только последний отправленный.
+         * Нам важно чтоб, отправлялся только один первый заголовок.
+         * @param string       $value      Значение заголовка
+         * @param bool|boolean $concurrent если true, заголовок будет отправлен в любом случае
+         */
+        private function setContentTypeHeader(string $value, bool $concurrent = false){
+            $this->Log('[setContentType]' . $value);
+            if(!$this->contentHeaderSend || $concurrent){
+                $this->callConnectionFunc('setRequestProperty', ['Content-Type', $value]);
+            }
+
+            $this->contentHeaderSend = true;
+        }
         /**
          * Загрузка раметров соединения
          */
@@ -918,6 +941,7 @@ namespace bundle\jurl;
             $this->requestLength = 
             $this->responseLength =
             $this->requestHeaderLength = 0;
+            $this->contentHeaderSend = false;
 
             if($this->buffer instanceof MemoryStream){
                 $this->buffer->close(); 
