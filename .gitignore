@@ -1,7 +1,24 @@
-
 build/*/
 build/*
 .idea
 .gradle/
 
 *.iml
+
+test-project/.dn
+
+test-project/vendor
+test-project/*.json
+test-project/*.txt
+test-project/src_generated
+test-project/src/JPHP-INF
+test-project/src/.debug
+test-project/build
+test-project/build.xml
+test-project/build.gradle
+test-project/settings.gradle
+
+*.log
+*.pid
+*.tmp
+*.sourcemap
