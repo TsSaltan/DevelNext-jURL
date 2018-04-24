@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?import javafx.scene.*?><?import javafx.collections.*?><?import javafx.scene.layout.*?><?import javafx.scene.control.*?><?import javafx.scene.text.*?><?import javafx.scene.image.*?><?import javafx.scene.shape.*?><?import javafx.scene.paint.*?><?import javafx.scene.web.*?><?import javafx.geometry.*?><?import java.lang.*?><?import org.develnext.jphp.ext.javafx.classes.data.*?><?import org.develnext.jphp.ext.javafx.support.*?><?import org.develnext.jphp.ext.javafx.support.control.*?><?import org.develnext.jphp.ext.game.support.*?><AnchorPane xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" AnchorPane.bottomAnchor="0" AnchorPane.leftAnchor="0" AnchorPane.rightAnchor="0" AnchorPane.topAnchor="0" focusTraversable="false" id="" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="584" prefWidth="424" styleClass="">
+  <children>
+    <Button alignment="CENTER" contentDisplay="LEFT" ellipsisString="..." focusTraversable="true" graphicTextGap="4" id="buttonGet" layoutX="8" layoutY="104" prefHeight="32" prefWidth="200" styleClass="button " text="GET - запрос" textAlignment="CENTER" underline="false" wrapText="false">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </Button>
+    <Data cursor="DEFAULT" enabled="1" id="data-buttonGet" visible="1"/>
+    <TextArea editable="false" focusTraversable="true" id="textAreaGet" layoutX="8" layoutY="8" prefColumnCount="40" prefHeight="96" prefWidth="200" promptText="Отправка GET-запроса" styleClass="text-input text-area " text="" wrapText="true">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </TextArea>
+    <Data cursor="DEFAULT" enabled="1" id="data-textAreaGet" visible="1"/>
+    <TextArea editable="false" focusTraversable="true" id="textAreaPost" layoutX="216" layoutY="8" prefColumnCount="40" prefHeight="96" prefWidth="200" promptText="Отправка POST-запроса" styleClass="text-input text-area " text="" wrapText="true">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </TextArea>
+    <Data cursor="DEFAULT" enabled="1" id="data-textAreaPost" visible="1"/>
+    <Button alignment="CENTER" contentDisplay="LEFT" ellipsisString="..." focusTraversable="true" graphicTextGap="4" id="buttonPost" layoutX="216" layoutY="104" prefHeight="32" prefWidth="200" styleClass="button " text="POST - запрос" textAlignment="CENTER" underline="false" wrapText="false">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </Button>
+    <Data cursor="DEFAULT" enabled="1" id="data-buttonPost" visible="1"/>
+    <TextArea editable="false" focusTraversable="true" id="textAreaCookie" layoutX="8" layoutY="152" prefColumnCount="40" prefHeight="96" prefWidth="200" promptText="Получить куки с сервера и сохранить в файл" styleClass="text-input text-area " text="" wrapText="true">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </TextArea>
+    <Data cursor="DEFAULT" enabled="1" id="data-textAreaCookie" visible="1"/>
+    <Button alignment="CENTER" contentDisplay="LEFT" ellipsisString="..." focusTraversable="true" graphicTextGap="4" id="buttonCookie" layoutX="8" layoutY="248" prefHeight="32" prefWidth="200" styleClass="button " text="Получить куки" textAlignment="CENTER" underline="false" wrapText="false">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </Button>
+    <Data cursor="DEFAULT" enabled="1" id="data-buttonCookie" visible="1"/>
+    <TextArea editable="false" focusTraversable="true" id="textAreaCookieSend" layoutX="216" layoutY="152" prefColumnCount="40" prefHeight="96" prefWidth="200" promptText="Сделать запрос с сохраненными ранее куками" styleClass="text-input text-area " text="" wrapText="true">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </TextArea>
+    <Data cursor="DEFAULT" enabled="1" id="data-textAreaCookieSend" visible="1"/>
+    <Button alignment="CENTER" contentDisplay="LEFT" ellipsisString="..." focusTraversable="true" graphicTextGap="4" id="buttonCookieSend" layoutX="216" layoutY="248" prefHeight="32" prefWidth="200" styleClass="button " text="Отправить куки" textAlignment="CENTER" underline="false" wrapText="false">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </Button>
+    <Data cursor="DEFAULT" enabled="1" id="data-buttonCookieSend" visible="1"/>
+    <TextArea editable="false" focusTraversable="true" id="textAreaUpload" layoutX="8" layoutY="296" prefColumnCount="40" prefHeight="96" prefWidth="200" promptText="Загрузить файлы на сервер" styleClass="text-input text-area " text="" wrapText="true">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </TextArea>
+    <Data cursor="DEFAULT" enabled="1" id="data-textAreaUpload" visible="1"/>
+    <Button alignment="CENTER" contentDisplay="LEFT" ellipsisString="..." focusTraversable="true" graphicTextGap="4" id="buttonUpload" layoutX="8" layoutY="392" prefHeight="32" prefWidth="200" styleClass="button " text="Загрузка файлов" textAlignment="CENTER" underline="false" wrapText="false">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </Button>
+    <Data cursor="DEFAULT" enabled="1" id="data-buttonUpload" visible="1"/>
+    <TextArea editable="false" focusTraversable="true" id="textAreaRedirect" layoutX="216" layoutY="296" prefColumnCount="40" prefHeight="96" prefWidth="200" promptText="Скрипт перенаправит на другой адрес. Другой скрипт покажет Referer и User-Agent" styleClass="text-input text-area " text="" wrapText="true">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </TextArea>
+    <Data cursor="DEFAULT" enabled="1" id="data-textAreaRedirect" visible="1"/>
+    <Button alignment="CENTER" contentDisplay="LEFT" ellipsisString="..." focusTraversable="true" graphicTextGap="4" id="buttonRedirect" layoutX="216" layoutY="392" prefHeight="32" prefWidth="200" styleClass="button " text="Поддержка редиректов" textAlignment="CENTER" underline="false" wrapText="false">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </Button>
+    <Data cursor="DEFAULT" enabled="1" id="data-buttonRedirect" visible="1"/>
+    <TextArea editable="false" focusTraversable="true" id="textAreaBasic" layoutX="8" layoutY="432" prefColumnCount="40" prefHeight="104" prefWidth="200" promptText="Basic - авторизация" styleClass="text-input text-area " text="" wrapText="true">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </TextArea>
+    <Data cursor="DEFAULT" enabled="1" id="data-textAreaBasic" visible="1"/>
+    <Button alignment="CENTER" contentDisplay="LEFT" ellipsisString="..." focusTraversable="true" graphicTextGap="4" id="buttonBasic" layoutX="8" layoutY="544" prefHeight="32" prefWidth="200" styleClass="button " text="Basic авторизация" textAlignment="CENTER" underline="false" wrapText="false">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </Button>
+    <Data cursor="DEFAULT" enabled="1" id="data-buttonBasic" visible="1"/>
+    <TextArea editable="false" focusTraversable="true" id="textAreaProxy" layoutX="216" layoutY="464" prefColumnCount="40" prefHeight="72" prefWidth="200" promptText="Get + Proxy" styleClass="text-input text-area " text="" wrapText="true">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </TextArea>
+    <Data cursor="DEFAULT" enabled="1" id="data-textAreaProxy" visible="1"/>
+    <Button alignment="CENTER" contentDisplay="LEFT" ellipsisString="..." focusTraversable="true" graphicTextGap="4" id="buttonProxy" layoutX="216" layoutY="544" prefHeight="32" prefWidth="200" styleClass="button " text="GET - Proxy - запрос" textAlignment="CENTER" underline="false" wrapText="false">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </Button>
+    <Data cursor="DEFAULT" enabled="1" id="data-buttonProxy" visible="1"/>
+    <TextField alignment="CENTER_LEFT" editable="true" focusTraversable="true" id="editProxy" layoutX="216" layoutY="432" prefColumnCount="12" prefHeight="25" prefWidth="144" promptText="прокси ip:port" styleClass="text-input text-field " text="">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </TextField>
+    <Data cursor="DEFAULT" enabled="1" id="data-editProxy" visible="1"/>
+    <Hyperlink alignment="CENTER" contentDisplay="LEFT" ellipsisString="..." focusTraversable="true" graphicTextGap="4" id="link" layoutX="360" layoutY="432" prefHeight="24" prefWidth="56" styleClass="hyperlink " text="Список" textAlignment="CENTER" wrapText="false">
+      <font>
+        <Font name="System Regular" size="12"/>
+      </font>
+    </Hyperlink>
+    <Data cursor="DEFAULT" enabled="1" id="data-link" visible="1"/>
+  </children>
+</AnchorPane>

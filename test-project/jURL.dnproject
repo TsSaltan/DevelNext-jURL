@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project author="Ts.Saltan" authorOS="Windows 7" createdAt="1457375706902" ideName="DevelNext" ideVersion="16.7.0" ideVersionHash="2017103112" name="jURL" packageName="app" template="ide\project\templates\DefaultGuiProjectTemplate" updatedAt="1524589534953">
+  <openedFiles>
+  <file src="jURL.dnproject"/>
+    <file selected="1" src="src/app/modules/AppModule.php"/>
+    <file src="src/app/forms/MainForm.php"/>
+  </openedFiles>
+  <files>
+  </files>
+  <behaviours>
+  <behaviour class="ide\project\behaviours\BundleProjectBehaviour"/>
+    <behaviour class="ide\project\behaviours\PhpProjectBehaviour"/>
+    <behaviour class="ide\project\behaviours\JavaPlatformBehaviour"/>
+    <behaviour class="ide\project\behaviours\GuiFrameworkProjectBehaviour"/>
+    <behaviour class="ide\project\behaviours\GradleProjectBehaviour"/>
+    <behaviour class="ide\project\behaviours\RunBuildProjectBehaviour"/>
+    <behaviour class="ide\project\behaviours\ShareProjectBehaviour"/>
+    <behaviour class="ide\project\behaviours\BackupProjectBehaviour"/>
+  </behaviours>
+<tree>
+    <expanded>
+    <path src=""/>
+      <path src="/src"/>
+      <path src="/src/app"/>
+      <path src="/src/app/forms"/>
+      <path src="/src/app/modules"/>
+    </expanded>
+  </tree>
+</project>
